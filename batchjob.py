@@ -219,7 +219,7 @@ def create_geom_obj(arg_type, arg_geometry):
             obj.SDO_ORDINATES = ordinateTypeObj.newobject()
 
             int_parts = arg_geometry.GetGeometryCount()
-            # Multi인 경우
+            # Multi인 경우 q
             if int_parts > 0:
                 for i in range(int_parts):
                     single_geom = arg_geometry.GetGeometryRef(i)

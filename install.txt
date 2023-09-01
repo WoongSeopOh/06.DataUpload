@@ -1,0 +1,19 @@
+conda update --all
+conda clean --all
+
+conda install -c https://conda.anaconda.org/anaconda cx_oracle
+
+# pip 설치
+pip install geopandas
+
+# 의존 패키지
+pip install pyproj
+pip install Shapely-1.8.2-cp311-cp311-win_amd64.whl
+pip install GDAL-3.4.3-cp311-cp311-win_amd64.whl
+pip install Fiona-1.8.21-cp311-cp311-win_amd64.whl
+pip install geopandas-0.12.2-py3-none-any.whl
+
+
+# GDAL 설치
+# 1) .whl 파일 다운 받아서 해당 파일 설치
+# 2) pip install GDAL-3.4.2-cp37-cp37m-win_amd64.whl
