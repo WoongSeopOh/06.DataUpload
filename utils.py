@@ -5,6 +5,10 @@ from datetime import datetime
 import os
 import time
 import shutil
+import log
+import zipfile
+
+logger = log.logger
 
 
 # functions -----------------------------------------------------------------------------------------------------------------------------------------
@@ -26,6 +30,7 @@ def create_job_folder(fldr_nm):
 
     except shutil.Error as exc:
         logger.error("Folder Creation Error Occurred! :" + str(exc.args[0]))
+        exit()
 
 
 # functions -----------------------------------------------------------------------------------------------------------------------------------------
@@ -83,4 +88,6 @@ def get_movefile_nm(arg_all_files, arg_data_nm):
     return arg_all_files
 
 
+def isNaN(num):
+    return num != num
 

@@ -35,7 +35,7 @@ data_folder_list = {
 
 # 용지도, 용지경계도 추가 필요
 spatial_data_list = {
-    LARD_ADM_SECT_SGG
+    LSMD_CONT_LDREG
 }
 # spatial_data_list = {
 #     LARD_ADM_SECT_SGG,      # 시군구경계도
