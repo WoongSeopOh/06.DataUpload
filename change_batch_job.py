@@ -1,6 +1,7 @@
 # ---------------------------------------------------------------------------------------------------------------------------------------------------
 # NS센터 데이터 업로드 배치프로그램
 # ---------------------------------------------------------------------------------------------------------------------------------------------------
+import sys
 from datetime import datetime
 import geopandas as gpd
 import glob
@@ -30,6 +31,7 @@ elementInfoTypeObj = db_con.gettype("MDSYS.SDO_ELEM_INFO_ARRAY")
 ordinateTypeObj = db_con.gettype("MDSYS.SDO_ORDINATE_ARRAY")
 
 logger = log.logger
+upload_values = []
 
 
 # create_geom_obj-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -324,9 +326,9 @@ def insert_shp_values2(layer_nm, layer_info, lyr_df, lyr_full_nm):
 
 
 def insert_shp_values3(layer_nm, layer_info, lyr_df, lyr_full_nm):
-    value_list = list()
-    total_values = list()
-    upload_values = list()
+    # value_list = list()
+    # total_values = list()
+    # upload_values = list()
     batch_size = 2000
 
     # 필드에 해당하는 인서트 구문 생성
@@ -347,13 +349,21 @@ def insert_shp_values3(layer_nm, layer_info, lyr_df, lyr_full_nm):
     data_count = len(lyr_df)
     share, rest = divmod(data_count, batch_size)
     logger.info(lyr_full_nm + ' Upload Started!!: ' + str(total_count) + ' 건')
+    print('lyr_df : ' + str(sys.getsizeof(lyr_df)))
+    # 89392212
+    total_values = [None] * 100000000
+    # my_set = set()
+    value_list = []
+    total_values = []
 
     for index, row in lyr_df.iterrows():
+
         for fld in dict_fields.keys():
             if fld == 'SHAPE':
                 g_type = row.geometry.geom_type
                 g_geom = row.geometry
                 geom = create_geom_obj(g_type, g_geom)
+                # print('geom : ' + str(sys.getsizeof(geom)))
                 value_list.append(geom)
             else:
                 if dict_fields.get(fld) in row.keys():
@@ -378,10 +388,14 @@ def insert_shp_values3(layer_nm, layer_info, lyr_df, lyr_full_nm):
             # print('insert!!')
 
             total_count += len(total_values)
-            print(str(total_count))
-            # # upload_values.extend(total_values[:])
-            del total_values[:]
-            gc.collect()
+            logger.info(str(total_count))
+            # logger.info('total_values : ' + str(sys.getsizeof(total_values)))
+            # upload_values.extend(total_values[:])
+            # print('upload_values : ' + str(sys.getsizeof(upload_values)))
+            # del total_values
+            # gc.collect()
+            # total_values = []
+            # print('total_values2 : ' + str(sys.getsizeof(total_values)))
             # print(str(len(upload_values)))
 
         # st1 = timeit.default_timer()
@@ -407,6 +421,144 @@ def insert_shp_values3(layer_nm, layer_info, lyr_df, lyr_full_nm):
         #     logger.info('Uploading... : ' + str(total_count) + ' 건')
 
     # logger.info(lyr_full_nm + ' Upload Completed!!: ' + str(total_count) + ' 건')
+
+
+def insert_shp_values4(layer_nm, layer_info, lyr_df, lyr_full_nm):
+    # total_values = list()
+
+    # 필드 수 만큼 바인드 변수 생성
+    isrt_sql = 'INSERT INTO T_LNDB_L_LSMD_CONT_LDREG(PNU, JIBUN, BCHK, SGG_OID, COL_ADM_SECT_CD, SHAPE) VALUES(:1, :2, :3, :4, :5, :6)'
+
+    # logger.info(isrt_sql)
+    icnt = 0
+    total_count = 0
+    # data_count = len(lyr_df)
+    # share, rest = divmod(data_count, batch_size)
+    # logger.info(lyr_full_nm + ' Upload Started!!: ' + str(total_count) + ' 건')
+    # lst_values = tuple()
+    # lst_values = [None] * len(lyr_df)
+    # print('lst_values : ' + str(sys.getsizeof(lst_values)))
+    for index, row in lyr_df.iterrows():
+        # pnu = row.get('PNU')
+        # jibun = row.get('JIBUN')
+        # bchk = row.get('BCHK')
+        # sgg_oid = row.get('SGG_OID')
+        # col_adm_sect_cd = row.get('COL_ADM_SE')
+        # geom = create_geom_obj(row.geometry.geom_type, row.geometry)
+
+        # lst_values = lst_values + ([pnu, jibun, bchk, sgg_oid, col_adm_sect_cd, geom],)
+        # lst_values.extend([[pnu, jibun, bchk, sgg_oid, col_adm_sect_cd, geom]])
+
+        # lst_values.extend([[pnu, jibun, bchk, sgg_oid, col_adm_sect_cd, geom]])
+        # lst_values[icnt] = [pnu, jibun, bchk, sgg_oid, col_adm_sect_cd]
+        icnt += 1
+
+        try:
+            # logger.info('A')
+            # db_cur.execute(isrt_sql, (pnu, jibun, bchk, sgg_oid, col_adm_sect_cd, geom))
+            db_cur.execute(isrt_sql, (row.get('PNU'), row.get('JIBUN'), row.get('BCHK'), row.get('SGG_OID'), row.get('COL_ADM_SE'), create_geom_obj(row.geometry.geom_type, row.geometry)))
+
+            if divmod(icnt, 2000)[1] == 0:
+                # total_values.extend(lst_values[:])
+                logger.info(str(icnt))
+            # db_con.commit()
+            # logger.info('B')
+        except cx_Oracle.DatabaseError as e:
+            logger.error(isrt_sql)
+            logger.error('error occured!!' + str(e))
+            exit()
+
+    db_con.commit()
+    # return lst_values
+
+
+def insert_shp_values5(layer_nm, layer_info, lyr_df, lyr_full_nm):
+    total_values = list()
+
+    # 필드 수 만큼 바인드 변수 생성
+    isrt_sql = 'INSERT INTO T_LNDB_L_LSMD_CONT_LDREG(PNU, JIBUN, BCHK, SGG_OID, COL_ADM_SECT_CD, SHAPE) VALUES(:1, :2, :3, :4, :5, :6)'
+
+    start_pos = 0
+    batch_size = 10000
+    total_size = 0
+    while start_pos < len(total_values):
+        split_rows = lyr_df.iloc[start_pos:start_pos + batch_size]
+        start_pos += batch_size
+
+        db_cur.executemany(isrt_sql, split_rows)
+        db_con.commit()
+        total_size = total_size + len(split_rows)
+        logger.info(lyr_full_nm + ' Uploading... : ' + str(total_size) + ' 건')
+    logger.info(lyr_full_nm + ' Upload Completed!!: ' + str(total_size) + ' 건')
+
+    # logger.info(isrt_sql)
+    icnt = 0
+    total_count = 0
+    # data_count = len(lyr_df)
+    # share, rest = divmod(data_count, batch_size)
+    logger.info(lyr_full_nm + ' Upload Started!!: ' + str(total_count) + ' 건')
+    lst_values = []
+    for index, row in lyr_df.iterrows():
+        pnu = row.get('PNU')
+        jibun = row.get('JIBUN')
+        bchk = row.get('BCHK')
+        sgg_oid = row.get('SGG_OID')
+        col_adm_sect_cd = row.get('COL_ADM_SE')
+        geom = create_geom_obj(row.geometry.geom_type, row.geometry)
+
+        lst_values.extend([[pnu, jibun, bchk, sgg_oid, col_adm_sect_cd, geom]])
+
+        icnt += 1
+        if divmod(icnt, 2000)[1] == 0:
+            # # upload_values.extend(total_values[:])
+            # del total_values[:]
+            logger.info('lst_extend')
+            total_values.extend(lst_values[:])
+            logger.info(str(len(total_values)))
+
+            del lst_values[:]
+            gc.collect()
+            logger.info('gc_collect')
+            # print(str(len(upload_values)))
+
+        # st1 = timeit.default_timer()
+        # st2 = timeit.default_timer()
+        # print("RUN TIME : {0}".format(st2 - st1))
+
+
+def insert_shp_values6(layer_nm, layer_info, lyr_df, lyr_full_nm):
+    # total_values = list()
+
+    # 필드 수 만큼 바인드 변수 생성
+    # isrt_sql = 'INSERT INTO T_LNDB_L_LSMD_CONT_LDREG(PNU, JIBUN, BCHK, SGG_OID, COL_ADM_SECT_CD, SHAPE) VALUES(:1, :2, :3, :4, :5, :6)'
+
+    # logger.info(isrt_sql)
+    icnt = 0
+    total_count = 0
+    # data_count = len(lyr_df)
+    # share, rest = divmod(data_count, batch_size)
+    # logger.info(lyr_full_nm + ' Upload Started!!: ' + str(total_count) + ' 건')
+    # lst_values = tuple()
+    lst_values = []
+    for index, row in lyr_df.iterrows():
+        pnu = row.get('PNU')
+        jibun = row.get('JIBUN')
+        bchk = row.get('BCHK')
+        sgg_oid = row.get('SGG_OID')
+        col_adm_sect_cd = row.get('COL_ADM_SE')
+        geom = create_geom_obj(row.geometry.geom_type, row.geometry)
+
+        # lst_values = lst_values + ([pnu, jibun, bchk, sgg_oid, col_adm_sect_cd, geom],)
+        # lst_values.extend([[pnu, jibun, bchk, sgg_oid, col_adm_sect_cd, geom]])
+        icnt += 1
+        lst_values.extend([[pnu, jibun, bchk, sgg_oid, col_adm_sect_cd, geom]])
+        # lst_values.extend([[icnt]])
+
+        # if divmod(icnt, 2000)[1] == 0:
+        #     total_values.extend(lst_values[:])
+        #     logger.info(str(len(total_values)))
+        #     lst_values = tuple()
+    return lst_values
 
 
 # Entry Point ---------------------------------------------------------------------------------------------------------------------------------------
@@ -448,7 +600,28 @@ try:
                         # insert_shp_values(data_nm, dict_inifo, shp_df, shp_full_nm)
                         # insert_shp_values2(data_nm, dict_inifo, shp_df, shp_full_nm)
                         # jit_rand_events = jit(nopython=True)(insert_shp_values3)
-                        insert_shp_values3(data_nm, dict_inifo, shp_df, shp_full_nm)
+
+                        insert_shp_values4(data_nm, dict_inifo, shp_df, shp_full_nm)
+
+                        # insert_shp_values3(data_nm, dict_inifo, shp_df, shp_full_nm)
+
+                        # start_pos = 0
+                        # batch_size = 2000
+                        # total_size = 0
+                        # total_values = len(shp_df)
+                        # b_flag = True
+                        # while start_pos < total_values:
+                        #     tmp_df = shp_df.iloc[start_pos:start_pos + batch_size]
+                        #
+                        #     start_pos += batch_size
+                        #     rtn_list = insert_shp_values4(data_nm, dict_inifo, tmp_df, shp_full_nm)
+                        #
+                        #     total_size = total_size + len(tmp_df)
+                        #     logger.info(str(total_size))
+                        #
+                        #     del [[tmp_df]]
+                        #     gc.collect()
+                        #     tmp_df = gpd.GeoDataFrame()
 
                         # 메모리 해제
                         del [[shp_df]]
