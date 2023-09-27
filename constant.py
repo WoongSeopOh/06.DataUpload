@@ -32,6 +32,20 @@ data_folder_list = {
     ABPM_SHR_YMB,           # 공유지연명부
     ABPH_OWNER_HIST         # 소유자연혁
 }
+
+# 용지도, 용지경계도 추가 필요
+spatial_data_list = {
+    LSMD_CONT_LDREG
+}
+# spatial_data_list = {
+#     LARD_ADM_SECT_SGG,      # 시군구경계도
+#     LSMD_ADM_SECT_UMD,      # 읍면동경계도
+#     LSMD_ADM_SECT_RI,       # 리경계도
+#     LSMD_CONT_UI101,        # 도로/용도구역
+#     LSMD_CONT_UI201,        # 고속국도/접도구역
+#     LSMD_CONT_LDREG,        # 연속지적도
+# }
+
 # Prod ---------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 # # TARGET
