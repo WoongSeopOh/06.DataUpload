@@ -1,0 +1,256 @@
+
+# ---------------------------------------------------------------------------------------------------------------------------------------------------
+# NS센터 데이터 업로드 배치프로그램
+# 전체 데이터를 업로드하고, 기존 데이터를 히스토리 테이블로 옮기는 데이터 유형 처리
+# ---------------------------------------------------------------------------------------------------------------------------------------------------
+import sys
+from datetime import datetime
+import geopandas as gpd
+import glob
+import gc
+import os
+import cx_Oracle
+import timeit
+from numba import jit
+
+import constant
+import meta_info
+import log
+import utils
+from config import config
+
+SR_ID = 2097
+DB_GEOMETRY = 'SDO_GEOMETRY'
+GEOM_TYPE_POINT = 'MULTIPOINT'
+GEOM_TYPE_POLYLINE = 'MULTILINE'
+GEOM_TYPE_POLYGON = 'MULTIPOLYGON'
+
+# DB Connect
+db_con = cx_Oracle.connect(user=config.db_user, password=config.db_pass, dsn=config.db_dsn)
+db_cur = db_con.cursor()
+# Geometry 객체 생성
+typeObj = db_con.gettype("MDSYS.SDO_GEOMETRY")
+elementInfoTypeObj = db_con.gettype("MDSYS.SDO_ELEM_INFO_ARRAY")
+ordinateTypeObj = db_con.gettype("MDSYS.SDO_ORDINATE_ARRAY")
+
+logger = log.logger
+upload_values = list()
+
+to_day = str(datetime.now().strftime("%Y%m%d"))
+
+# 오라클 nls_lang : AMERICAN_AMERICA.KO16MSWIN949
+# os.environ['NLS_LANG'] = ".AL32UTF8"
+os.environ['NLS_LANG'] = "AMERICAN_AMERICA.KO16MSWIN949"
+
+
+# create_geom_obj-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+def create_geom_obj(geom_type, geom):
+    lst_pts = []
+    lst_elem_info = []
+    type_var = None
+
+    obj = typeObj.newobject()
+
+    # Geometry Type 정의
+    if geom_type == 'Point':
+        obj.SDO_GTYPE = 2001
+    elif geom_type == 'MultiPoint':
+        obj.SDO_GTYPE = 2005
+    elif geom_type == 'LineString':
+        obj.SDO_GTYPE = 2002
+        type_var = 2
+        lst_elem_info.extend([1, 2, 1])
+    elif geom_type == 'MultiLineString':
+        obj.SDO_GTYPE = 2006
+        type_var = 2
+        lst_elem_info.extend([1, 2, 1])
+    elif geom_type == 'Polygon':
+        obj.SDO_GTYPE = 2003
+        type_var = 1003
+        lst_elem_info.extend([1, 1003, 1])
+    elif geom_type == 'MultiPolygon':
+        obj.SDO_GTYPE = 2007
+        type_var = 1003
+        lst_elem_info.extend([1, 1003, 1])
+
+    # SR_ID 전역변수
+    obj.SDO_SRID = SR_ID
+    if geom_type == 'Point':
+        pointTypeObj = db_con.gettype("MDSYS.SDO_POINT_TYPE")
+        obj.SDO_POINT = pointTypeObj.newobject()
+        obj.SDO_POINT.X = geom.Centroid().GetX()
+        obj.SDO_POINT.Y = geom.Centroid().GetY()
+
+    elif geom_type in ['LineString', 'MultiLineString', 'Polygon', 'MultiPolygon']:
+        obj.SDO_ELEM_INFO = elementInfoTypeObj.newobject()
+        obj.SDO_ORDINATES = ordinateTypeObj.newobject()
+
+        if geom_type in ['LineString', 'Polygon']:
+            for pt in geom.exterior.coords:
+                lst_pts.extend([pt[0], pt[1]])
+
+        if geom_type in ['MultiLineString', 'MultiPolygon']:
+            int_parts = len(geom.geoms)
+            i = 0
+            for g in geom.geoms:
+                for pt in g.exterior.coords:
+                    lst_pts.extend([pt[0], pt[1]])
+                if i < int_parts - 1:
+                    lst_elem_info.extend([len(lst_pts)+1, type_var, 1])
+                i += 1
+
+        obj.SDO_ELEM_INFO.extend(lst_elem_info)
+        obj.SDO_ORDINATES.extend(lst_pts)
+    else:
+        return None
+
+    return obj
+
+
+# insert_values--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+def insert_shp_values(layer_nm, layer_info, lyr_df, lyr_full_nm):
+    value_list = []
+    total_values = []
+
+    # 필드에 해당하는 인서트 구문 생성
+    dict_fields = layer_info.get('fields')
+    fld_body_name, fld_values = '', ''
+    inx = 0
+    idx = 1
+    for fld in dict_fields.keys():
+        inx += 1
+        fld_body_name = fld_body_name + fld + ','
+        fld_values = fld_values + ':' + str(inx) + ','
+
+    # 필드 수 만큼 바인드 변수 생성
+    isrt_sql = "INSERT INTO " + layer_nm + "(" + fld_body_name[:-1] + ") VALUES(" + fld_values[:-1] + ")"
+    int_test = 1
+    for index, row in lyr_df.iterrows():
+        for fld in dict_fields.keys():
+            # TODO: 테이블마다 공간정보 필드 이름이 다르다.. OR 처리 필요..
+            if fld == 'SHAPE':
+                g_type = row.geometry.geom_type
+                g_geom = row.geometry
+                geom = create_geom_obj(g_type, g_geom)
+                value_list.append(geom)
+            elif fld == 'BATCH_DATE':
+                value_list.append(to_day)
+            else:
+                if dict_fields.get(fld) in row.keys():
+                    if utils.isNaN(row.get(dict_fields.get(fld))):
+                        value_list.append(None)
+                    else:
+                        value_list.append(row.get(dict_fields.get(fld)))
+                else:
+                    value_list.append(idx)
+                    idx += 1
+        copy_list = value_list[:]
+        total_values.append(copy_list)
+        del value_list[:]
+        int_test += 1
+
+    try:
+        # Performance
+        # cursor.setinputsizes(None, 20)  --> 각 컬럼의 최대 크기 지정 // 숫자는 None, 컬럼마다 String의 경우 20  .. 컬럼이 다섯개면.. (1, 3, 4, 5, 6) 이런식?
+        # 큰 데이터 이유로 executemany라고 해도, 나눠서 인서트 필요 (Commit, 로그 등등)
+        start_pos = 0
+        batch_size = 10000
+        total_size = 0
+        while start_pos < len(total_values):
+            split_rows = total_values[start_pos:start_pos + batch_size]
+            start_pos += batch_size
+            db_cur.executemany(isrt_sql, split_rows)
+            db_con.commit()
+            total_size = total_size + len(split_rows)
+        logger.info(f"{lyr_full_nm} Upload Completed!!: {str(total_size)} 건")
+
+    except cx_Oracle.DatabaseError as e:
+        logger.error(isrt_sql)
+        logger.error(f"error occured!!: {str(e)}")
+        exit()
+    finally:
+        del value_list[:]
+
+
+# Entry Point ---------------------------------------------------------------------------------------------------------------------------------------
+logger.info('start all_batch_job!!')
+
+# 1) 마스터 정보 DB에서 읽어오기DATA_NM VARCHAR2(64 CHAR),
+lst_batch_mng = list()
+
+try:
+    # 데이터명, 전체처리여부, 레이어여부, 마지막배치일자
+    strSQL = "SELECT DATA_NM, ALL_BATCH_YN, LAYER_YN, LAST_BATCH_DATE FROM T_LNDB_BATCH_MNG"
+    db_cur.execute(strSQL)
+    for rec in db_cur:
+        lst_batch_mng.append(rec)
+except cx_Oracle.DatabaseError as e:
+    logger.error(f"Database Error Occured: {str(e)}")
+    db_cur.close()
+    db_con  .close()
+    sys.exit()
+
+# 2) 작업폴더 생성
+utils.create_job_folder(constant.target_folder_path + to_day)
+
+# 데이터별로 처리
+try:
+    for data in lst_batch_mng:
+        data_nm = data[0]
+        all_batch_yn = data[1]
+        layer_yn = data[2]
+        last_batch_date = data[3]
+        # for debug
+        # if data_nm != 'LARD_ADM_SECT_SGG':
+        #     continue
+        logger.info(f"{data_nm}: Database Processing Startd!! --------------------------------------------------------------------------------------------------------")
+
+        # NS센터에서 전송된 원본 압축파일 위치
+        source_folder_nm = constant.source_folder_path + data_nm
+        # 압축파일이 풀릴 위치
+        target_folder_nm = constant.target_folder_path + to_day + '/' + data_nm
+        utils.create_job_folder(target_folder_nm)
+        utils.create_job_folder(target_folder_nm + '/unzip')
+
+        unzip_folder = utils.get_folder_move_and_unzip(source_folder_nm, target_folder_nm, data_nm)
+        if unzip_folder is None:
+            continue
+        logger.info(f"{unzip_folder}: Unzip and data moving finished!!")
+
+        # 17개 시도 데이터가 압축풀려서 한 폴더에 위치함.
+        lst_files = os.listdir(unzip_folder)
+        if layer_yn == 'Y':
+            for u_file in lst_files:
+                if u_file[-4:] == '.shp':
+                    dict_inifo = meta_info.layer_info.get(data_nm)
+                    if dict_inifo['layer']:
+                        # full name
+                        shp_full_nm = os.path.join(unzip_folder, u_file)
+                        shp_df = gpd.read_file(shp_full_nm, encoding='euckr')
+                        if shp_df is None:
+                            logger.error(f"Wrong Shape File: {str(shp_full_nm)}")
+                            continue
+                        insert_shp_values(dict_inifo['table'], dict_inifo, shp_df, shp_full_nm)
+                        # 메모리 해제
+                        del [[shp_df]]
+                        gc.collect()
+                        shp_df = gpd.GeoDataFrame()
+        else:
+            pass
+            # sqlldr
+            for u_file in lst_files:
+                # LSCT_LAWDCD 법정동코드는  .csv 파일임
+                if u_file[-4:] == '.txt' or u_file[-4:] == '.csv':
+                    ctl_path = f"{constant.sqlldr_ctr_folder}{data_nm}.ctl"
+                    log_path = f"{constant.sqlldr_log_folder}/{data_nm}_{to_day}.log"
+                    bad_path = f"{constant.sqlldr_bad_folder}/{data_nm}_{to_day}.bad"
+                    data_path = f"{unzip_folder}/{u_file}"
+                    command = rf"sqlldr userid={config.db_user}/{config.db_pass}@{config.db_dsn} control={ctl_path} data={data_path} log={log_path} bad={bad_path} rows=100000 direct=TRUE"
+                    os.system(command)
+                    logger.info(f"{unzip_folder}/{u_file}: Sqlldr Success!!")
+
+except Exception as e:
+    logger.error(f"error occured!!: {str(e)}")
+    exit()
+
+logger.info('finish batch job!!')

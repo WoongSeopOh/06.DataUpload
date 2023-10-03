@@ -5,5 +5,5 @@
 # 데이터베이스 접속 관련
 db_user = 'land'
 db_pass = 'land'
-db_dsn =  'land'
+db_dsn = 'land'
 

@@ -25,7 +25,6 @@ def create_job_folder(fldr_nm):
             time.sleep(3)
             os.mkdir(fldr_nm)
             shutil.rmtree(new_name_for_delete, ignore_errors=True)
-
         return
 
     except shutil.Error as exc:
