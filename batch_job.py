@@ -3,15 +3,13 @@
 # NS센터 데이터 업로드 배치프로그램
 # 전체 데이터를 업로드하고, 기존 데이터를 히스토리 테이블로 옮기는 데이터 유형 처리
 # ---------------------------------------------------------------------------------------------------------------------------------------------------
+import re
 import sys
 from datetime import datetime
 import geopandas as gpd
-import glob
 import gc
 import os
 import cx_Oracle
-import timeit
-from numba import jit
 
 import constant
 import meta_info
@@ -41,6 +39,32 @@ to_day = str(datetime.now().strftime("%Y%m%d"))
 # 오라클 nls_lang : AMERICAN_AMERICA.KO16MSWIN949
 # os.environ['NLS_LANG'] = ".AL32UTF8"
 os.environ['NLS_LANG'] = "AMERICAN_AMERICA.KO16MSWIN949"
+
+
+# db_log-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+def db_log(arg_data_nm, prcs_type, arg_file_date, err_msg=None):
+    cursor = db_con.cursor()
+
+    try:
+        # prcs_type : 1) 시작, 2) 종료, 3) 에러
+        if prcs_type == '1':
+            u_sql = "UPDATE T_LNDB_BATCH_MNG SET FILE_DATE = :1, BGN_BATCH_DATE = SYSDATE, LSTTM_CHNG_DTTM = SYSDATE, END_BATCH_DATE = NULL, SCSS_YN = NULL, RMK = NULL WHERE DATA_NM = :2"
+            cursor.execute(u_sql, [arg_file_date, arg_data_nm])
+        elif prcs_type == '2':
+            u_sql = "UPDATE T_LNDB_BATCH_MNG SET END_BATCH_DATE = SYSDATE, SCSS_YN = 'Y', LSTTM_CHNG_DTTM = SYSDATE WHERE DATA_NM = :1"
+            cursor.execute(u_sql, [arg_data_nm])
+        else:
+            u_sql = "UPDATE T_LNDB_BATCH_MNG SET END_BATCH_DATE = SYSDATE, SCSS_YN = 'N', LSTTM_CHNG_DTTM = SYSDATE, RMK = :1 WHERE DATA_NM = :2"
+            cursor.execute(u_sql, [err_msg, arg_data_nm])
+
+        cursor.close()
+        db_con.commit()
+
+    except cx_Oracle.DatabaseError as err:
+        logger.error(f"error occured!!: {str(err)}")
+        cursor.close()
+        db_con.close()
+        sys.exit()
 
 
 # create_geom_obj-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -108,12 +132,13 @@ def create_geom_obj(geom_type, geom):
 
 
 # insert_values--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-def insert_shp_values(layer_nm, layer_info, lyr_df, lyr_full_nm):
+def insert_shp_values(layer_nm, dic_info, lyr_df, lyr_full_nm, db):
     value_list = []
     total_values = []
+    cursor = db.cursor()
 
     # 필드에 해당하는 인서트 구문 생성
-    dict_fields = layer_info.get('fields')
+    dict_fields = dic_info.get('fields')
     fld_body_name, fld_values = '', ''
     inx = 0
     idx = 1
@@ -159,16 +184,16 @@ def insert_shp_values(layer_nm, layer_info, lyr_df, lyr_full_nm):
         while start_pos < len(total_values):
             split_rows = total_values[start_pos:start_pos + batch_size]
             start_pos += batch_size
-            db_cur.executemany(isrt_sql, split_rows)
-            db_con.commit()
+            cursor.executemany(isrt_sql, split_rows)
+            db.commit()
             total_size = total_size + len(split_rows)
         logger.info(f"{lyr_full_nm} Upload Completed!!: {str(total_size)} 건")
 
-    except cx_Oracle.DatabaseError as e:
+    except cx_Oracle.DatabaseError as err:
         logger.error(isrt_sql)
-        logger.error(f"error occured!!: {str(e)}")
-        exit()
+        logger.error(f"error occured!!: {str(err)}")
     finally:
+        cursor.close()
         del value_list[:]
 
 
@@ -180,32 +205,33 @@ lst_batch_mng = list()
 
 try:
     # 데이터명, 전체처리여부, 레이어여부, 마지막배치일자
-    strSQL = "SELECT DATA_NM, ALL_BATCH_YN, LAYER_YN, LAST_BATCH_DATE FROM T_LNDB_BATCH_MNG"
+    strSQL = "SELECT DATA_NM, ALL_BATCH_YN, LAYER_YN, BGN_BATCH_DATE, END_BATCH_DATE FROM T_LNDB_BATCH_MNG"
     db_cur.execute(strSQL)
     for rec in db_cur:
         lst_batch_mng.append(rec)
+    db_cur.close()
+
 except cx_Oracle.DatabaseError as e:
     logger.error(f"Database Error Occured: {str(e)}")
     db_cur.close()
-    db_con  .close()
+    db_con.close()
     sys.exit()
 
 # 2) 작업폴더 생성
 utils.create_job_folder(constant.target_folder_path + to_day)
 
 # 데이터별로 처리
-try:
-    for data in lst_batch_mng:
-        data_nm = data[0]
-        all_batch_yn = data[1]
-        layer_yn = data[2]
-        last_batch_date = data[3]
-        # for debug
-        # if data_nm != 'LARD_ADM_SECT_SGG':
-        #     continue
-        logger.info(f"{data_nm}: Database Processing Startd!! --------------------------------------------------------------------------------------------------------")
-
-        # NS센터에서 전송된 원본 압축파일 위치
+for data in lst_batch_mng:
+    data_nm = data[0]
+    all_batch_yn = data[1]
+    layer_yn = data[2]
+    # for debug
+    # if data_nm != 'LARD_ADM_SECT_SGG':
+    #     continue
+    logger.info(f"{data_nm}: Database Processing Startd!! --------------------------------------------------------------------------------------------------------")
+    # NS센터에서 전송된 원본 압축파일 위치
+    try:
+        dict_inifo = meta_info.layer_info.get(data_nm)
         source_folder_nm = constant.source_folder_path + data_nm
         # 압축파일이 풀릴 위치
         target_folder_nm = constant.target_folder_path + to_day + '/' + data_nm
@@ -219,10 +245,18 @@ try:
 
         # 17개 시도 데이터가 압축풀려서 한 폴더에 위치함.
         lst_files = os.listdir(unzip_folder)
+
+        # 파일날짜 가져오기 re.sub(r'[^0-9]','',a[23:])
+        if len(lst_files) > 0:
+            int_pos = meta_info.file_date_pos.get(data_nm)
+            file_date = re.sub(r'[^0-9]', '', lst_files[0][int_pos:])
+        else:
+            file_date = None
+        db_log(data_nm, '1', file_date, None)
+
         if layer_yn == 'Y':
             for u_file in lst_files:
                 if u_file[-4:] == '.shp':
-                    dict_inifo = meta_info.layer_info.get(data_nm)
                     if dict_inifo['layer']:
                         # full name
                         shp_full_nm = os.path.join(unzip_folder, u_file)
@@ -230,13 +264,12 @@ try:
                         if shp_df is None:
                             logger.error(f"Wrong Shape File: {str(shp_full_nm)}")
                             continue
-                        insert_shp_values(dict_inifo['table'], dict_inifo, shp_df, shp_full_nm)
+                        insert_shp_values(dict_inifo['table'], dict_inifo, shp_df, shp_full_nm, db_con)
                         # 메모리 해제
                         del [[shp_df]]
                         gc.collect()
                         shp_df = gpd.GeoDataFrame()
         else:
-            pass
             # sqlldr
             for u_file in lst_files:
                 # LSCT_LAWDCD 법정동코드는  .csv 파일임
@@ -248,9 +281,11 @@ try:
                     command = rf"sqlldr userid={config.db_user}/{config.db_pass}@{config.db_dsn} control={ctl_path} data={data_path} log={log_path} bad={bad_path} rows=100000 direct=TRUE"
                     os.system(command)
                     logger.info(f"{unzip_folder}/{u_file}: Sqlldr Success!!")
+        # 로그
+        db_log(data_nm, '2', file_date, None)
+    except Exception as e:
+        logger.error(f"error occured!!: {str(e)}")
+        db_log(data_nm, '3', None, str(e))
 
-except Exception as e:
-    logger.error(f"error occured!!: {str(e)}")
-    exit()
 
 logger.info('finish batch job!!')

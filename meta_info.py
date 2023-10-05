@@ -65,18 +65,27 @@ layer_info = {
                                    'SHAPE': 'geometry'}}
 }
 
-layer_nm = {
-    'LARD_ADM_SECT_SGG': '',
-    'LSMD_CONT_LDREG': ''
+# 파일 이름 안에 날짜를 가져오기위한 자리수 위치
+file_date_pos = {
+    # ABPM_LAND_FRST_LEDG_26_202308_Y.zip
+    'ABPM_LAND_FRST_LEDG': 23,
+    # APMM_NV_JIGA_MNG_11_2018_07.zip
+    'APMM_NV_JIGA_MNG': 20,
+    # ABPH_LAND_MOV_HIST_26_202308.zip
+    'ABPH_LAND_MOV_HIST': 22,
+    # ABPD_UNQ_NO_CHG_HIST_26_202308.zip
+    'ABPD_UNQ_NO_CHG_HIST': 24,
+    # LARD_ADM_SECT_SGG_27_202307.zip
+    'LARD_ADM_SECT_SGG': 21,
+    # LSMD_ADM_SECT_UMD_30_202308.zip
+    'LSMD_ADM_SECT_UMD': 21,
+    # LSMD_ADM_SECT_RI_41_202308.zip
+    'LSMD_ADM_SECT_RI': 20,
+    'LSCT_LAWDCD': 0,
+    # LSMD_CONT_UI101_31_202308.zip
+    'LSMD_CONT_UI101': 19,
+    # LSMD_CONT_UI201_47_202308.zip
+    'LSMD_CONT_UI201': 19,
+    # LSMD_CONT_LDREG_30_202308.zip
+    'LSMD_CONT_LDREG': 19
 }
-
-# # 전체 데이터 변경(7): 시군구, 읍면동, 리, 용도구역, 접도구역, 법정동코드, 공시지가
-# all_data_nm = {
-#     'LARD_ADM_SECT_SGG': 'T_LNDB_L_LARD_ADM_SECT_SGG',
-#     'LSMD_ADM_SECT_UMD': '',
-#     'LSMD_ADM_SECT_RI': '',
-#     'LSMD_CONT_UI101': '',
-#     'LSMD_CONT_UI201': '',
-#     'LSCT_LAWDCD': 'T_LNDB_L_LSCT_LAWDCD',
-#     'APMM_NV_JIGA_MNG': 'T_LNDB_L_APMM_NV_JIGA_MNG'
-# }
