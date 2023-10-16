@@ -38,10 +38,10 @@ data_folder_list = {
 # Prod ---------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 # # TARGET
-# target_folder_path = r'/DATA/landinfo/temp'
+# source_folder_path = r'/DATA/landinfo/temp'
 #
 # # DATA
-# data_folder_path = r'/GIS_MAIN'
+# target_folder_path = r'/GIS_MAIN'
 #
 # # SQLLDR 관련 폴더
 # sqlldr_ctr_folder = r'/DATA/landinfo/dailybatch/sqlldr/'
@@ -53,6 +53,13 @@ data_folder_list = {
 #
 # # LOG 폴더 PATH
 # log_path = r'/DATA/landinfo/dailybatch/log/'
+
+# Centerline Dissolve Data Path
+# center_line_shp = r'/DATA/landinfo/dailybatch/centerline/center_line_bf_dissolve.shp'
+
+# Backup Folder
+# backup_path = r'/DATA/landinfo/dailybatch/backup/'
+
 
 # Dev ---------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -73,3 +80,9 @@ create_shp_path = r'C:/DATA/landinfo/dailybatch/nsdi-data/shp/'
 
 # LOG 폴더 PATH
 log_path = r'C:/DATA/landinfo/dailybatch/log/'
+
+# Centerline Dissolve Data Path
+center_line_shp = r'C:/DATA/landinfo/dailybatch/centerline/center_line_bf_dissolve.shp'
+
+# Backup Folder
+backup_path = r'C:/DATA/landinfo/backup/'

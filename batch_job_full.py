@@ -34,7 +34,7 @@ ordinateTypeObj = db_con.gettype("MDSYS.SDO_ORDINATE_ARRAY")
 logger = log.logger
 upload_values = list()
 
-to_day = str(datetime.now().strftime("%Y%m%d"))
+execute_day = str(datetime.now().strftime("%Y%m%d"))
 
 # 오라클 nls_lang : AMERICAN_AMERICA.KO16MSWIN949
 # os.environ['NLS_LANG'] = ".AL32UTF8"
@@ -48,13 +48,13 @@ def db_log(arg_data_nm, prcs_type, arg_file_date, err_msg=None):
     try:
         # prcs_type : 1) 시작, 2) 종료, 3) 에러
         if prcs_type == '1':
-            u_sql = "UPDATE T_LNDB_BATCH_MNG SET FILE_DATE = :1, BGN_BATCH_DATE = SYSDATE, LSTTM_CHNG_DTTM = SYSDATE, END_BATCH_DATE = NULL, SCSS_YN = NULL, RMK = NULL WHERE DATA_NM = :2"
+            u_sql = "UPDATE T_LNDB_BATCH_MNG SET LAST_DAILY_UPDATE = :1, BGN_BATCH_DATE = SYSDATE, LAST_UPDATE_DATE = SYSDATE, END_BATCH_DATE = NULL, SCSS_YN = NULL, RMK = NULL WHERE DATA_NM = :2"
             cursor.execute(u_sql, [arg_file_date, arg_data_nm])
         elif prcs_type == '2':
-            u_sql = "UPDATE T_LNDB_BATCH_MNG SET END_BATCH_DATE = SYSDATE, SCSS_YN = 'Y', LSTTM_CHNG_DTTM = SYSDATE WHERE DATA_NM = :1"
+            u_sql = "UPDATE T_LNDB_BATCH_MNG SET END_BATCH_DATE = SYSDATE, SCSS_YN = 'Y', LAST_UPDATE_DATE = SYSDATE WHERE DATA_NM = :1"
             cursor.execute(u_sql, [arg_data_nm])
         else:
-            u_sql = "UPDATE T_LNDB_BATCH_MNG SET END_BATCH_DATE = SYSDATE, SCSS_YN = 'N', LSTTM_CHNG_DTTM = SYSDATE, RMK = :1 WHERE DATA_NM = :2"
+            u_sql = "UPDATE T_LNDB_BATCH_MNG SET END_BATCH_DATE = SYSDATE, SCSS_YN = 'N', LAST_UPDATE_DATE = SYSDATE, RMK = :1 WHERE DATA_NM = :2"
             cursor.execute(u_sql, [err_msg, arg_data_nm])
 
         cursor.close()
@@ -158,8 +158,6 @@ def insert_shp_values(layer_nm, dic_info, lyr_df, lyr_full_nm, db):
                 g_geom = row.geometry
                 geom = create_geom_obj(g_type, g_geom)
                 value_list.append(geom)
-            elif fld == 'BATCH_DATE':
-                value_list.append(to_day)
             else:
                 if dict_fields.get(fld) in row.keys():
                     if utils.isNaN(row.get(dict_fields.get(fld))):
@@ -202,10 +200,11 @@ logger.info('start all_batch_job!!')
 
 # 1) 마스터 정보 DB에서 읽어오기DATA_NM VARCHAR2(64 CHAR),
 lst_batch_mng = list()
+center_ling_gpd = None
 
 try:
     # 데이터명, 전체처리여부, 레이어여부, 마지막배치일자
-    strSQL = "SELECT DATA_NM, ALL_BATCH_YN, LAYER_YN, BGN_BATCH_DATE, END_BATCH_DATE FROM T_LNDB_BATCH_MNG"
+    strSQL = "SELECT DATA_NM, ALL_BATCH_YN, LAYER_YN, BGN_BATCH_DATE, END_BATCH_DATE FROM T_LNDB_BATCH_MNG WHERE USE_YN = 'Y'"
     db_cur.execute(strSQL)
     for rec in db_cur:
         lst_batch_mng.append(rec)
@@ -218,7 +217,7 @@ except cx_Oracle.DatabaseError as e:
     sys.exit()
 
 # 2) 작업폴더 생성
-utils.create_job_folder(constant.target_folder_path + to_day)
+utils.create_job_folder(constant.target_folder_path + execute_day)
 
 # 데이터별로 처리
 for data in lst_batch_mng:
@@ -234,7 +233,7 @@ for data in lst_batch_mng:
         dict_inifo = meta_info.layer_info.get(data_nm)
         source_folder_nm = constant.source_folder_path + data_nm
         # 압축파일이 풀릴 위치
-        target_folder_nm = constant.target_folder_path + to_day + '/' + data_nm
+        target_folder_nm = constant.target_folder_path + execute_day + '/' + data_nm
         utils.create_job_folder(target_folder_nm)
         utils.create_job_folder(target_folder_nm + '/unzip')
 
@@ -257,26 +256,37 @@ for data in lst_batch_mng:
         if layer_yn == 'Y':
             for u_file in lst_files:
                 if u_file[-4:] == '.shp':
-                    if dict_inifo['layer']:
-                        # full name
-                        shp_full_nm = os.path.join(unzip_folder, u_file)
-                        shp_df = gpd.read_file(shp_full_nm, encoding='euckr')
-                        if shp_df is None:
-                            logger.error(f"Wrong Shape File: {str(shp_full_nm)}")
-                            continue
-                        insert_shp_values(dict_inifo['table'], dict_inifo, shp_df, shp_full_nm, db_con)
-                        # 메모리 해제
-                        del [[shp_df]]
-                        gc.collect()
-                        shp_df = gpd.GeoDataFrame()
+                    # full name
+                    shp_full_nm = os.path.join(unzip_folder, u_file)
+                    logger.info(shp_full_nm)
+                    shp_df = gpd.read_file(shp_full_nm, encoding='euckr')
+                    if shp_df is None:
+                        logger.error(f"Wrong Shape File: {str(shp_full_nm)}")
+                        continue
+                    # 지적도 클립 작업 진행
+                    if u_file.startswith('LSMD_CONT_LDREG'):
+                        # Centerline 가져오기
+                        if center_ling_gpd is None:
+                            center_ling_gpd = gpd.read_file(constant.center_line_shp, encoding='euckr')
+                            logger.info(center_ling_gpd.shape)
+                        shp_df = gpd.clip(shp_df, center_ling_gpd)
+                        logger.info(shp_df.shape)
+
+                    # Insert Data
+                    insert_shp_values(dict_inifo['table'], dict_inifo, shp_df, shp_full_nm, db_con)
+
+                    # 메모리 해제
+                    del [[shp_df]]
+                    gc.collect()
+                    shp_df = gpd.GeoDataFrame()
         else:
             # sqlldr
             for u_file in lst_files:
                 # LSCT_LAWDCD 법정동코드는  .csv 파일임
                 if u_file[-4:] == '.txt' or u_file[-4:] == '.csv':
                     ctl_path = f"{constant.sqlldr_ctr_folder}{data_nm}.ctl"
-                    log_path = f"{constant.sqlldr_log_folder}/{data_nm}_{to_day}.log"
-                    bad_path = f"{constant.sqlldr_bad_folder}/{data_nm}_{to_day}.bad"
+                    log_path = f"{constant.sqlldr_log_folder}/{data_nm}_{execute_day}.log"
+                    bad_path = f"{constant.sqlldr_bad_folder}/{data_nm}_{execute_day}.bad"
                     data_path = f"{unzip_folder}/{u_file}"
                     command = rf"sqlldr userid={config.db_user}/{config.db_pass}@{config.db_dsn} control={ctl_path} data={data_path} log={log_path} bad={bad_path} rows=100000 direct=TRUE"
                     os.system(command)

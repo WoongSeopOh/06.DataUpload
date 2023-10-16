@@ -7,6 +7,7 @@ import time
 import shutil
 import log
 import zipfile
+import constant
 
 logger = log.logger
 
@@ -87,6 +88,36 @@ def get_movefile_nm(arg_all_files, arg_data_nm):
     return arg_all_files
 
 
+# isNaN ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 def isNaN(num):
     return num != num
 
+
+# move_and_backup_files --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+def move_and_backup_files(arg_dict):
+    try:
+        for data in arg_dict.keys():
+            if len(arg_dict[data]) > 0:
+                source_folder_nm = constant.source_folder_path + data
+                target_folder_nm = constant.backup_path + data
+                if not os.path.isdir(target_folder_nm):
+                    os.mkdir(target_folder_nm)
+
+                for file in arg_dict[data]:
+                    file_nm = source_folder_nm + '/' + file + '.zip'
+                    if os.path.isfile(file_nm):
+                        shutil.move(file_nm, target_folder_nm)
+    except FileNotFoundError as err:
+        logger.error("File Not Found Error! :" + str(err))
+
+    return None
+
+
+# validate_date ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+def validate_date(arg_date):
+    try:
+        datetime.strptime(arg_date, "%Y%m%d")
+        return True
+    except ValueError:
+        logger.error("Incorrect data format({0}), should be YYYYMMDD!".format(arg_date))
+        return False

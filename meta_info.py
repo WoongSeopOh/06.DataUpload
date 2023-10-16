@@ -11,7 +11,6 @@ layer_info = {
                                      'SGG_NM': 'SGG_NM',
                                      'SGG_OID': 'SGG_OID',
                                      'COL_ADM_SECT_CD': 'COL_ADM_SE',
-                                     'BATCH_DATE': None,
                                      'SHAPE': 'geometry'}},
     'LSMD_ADM_SECT_UMD': {'layer': True,
                           'type': 'polygon',
@@ -20,7 +19,6 @@ layer_info = {
                                      'EMD_NM': 'EMD_NM',
                                      'SGG_OID': 'SGG_OID',
                                      'COL_ADM_SECT_CD': 'COL_ADM_SE',
-                                     'BATCH_DATE': None,
                                      'SHAPE': 'geometry'}},
     'LSMD_ADM_SECT_RI': {'layer': True,
                          'type': 'polygon',
@@ -29,7 +27,6 @@ layer_info = {
                                     'RI_NM': 'RI_NM',
                                     'SGG_OID': 'SGG_OID',
                                     'COL_ADM_SECT_CD': 'COL_ADM_SE',
-                                    'BATCH_DATE': None,
                                     'SHAPE': 'geometry'}},
     'LSMD_CONT_UI101': {'layer': True,
                         'type': 'polygon',
@@ -40,7 +37,6 @@ layer_info = {
                                    'NTFDATE': 'NTFDATE',
                                    'SGG_OID': 'SGG_OID',
                                    'COL_ADM_SECT_CD': 'COL_ADM_SE',
-                                   'BATCH_DATE': None,
                                    'SHAPE': 'geometry'}},
     'LSMD_CONT_UI201': {'layer': True,
                         'type': 'polygon',
@@ -51,7 +47,6 @@ layer_info = {
                                    'NTFDATE': 'NTFDATE',
                                    'SGG_OID': 'SGG_OID',
                                    'COL_ADM_SECT_CD': 'COL_ADM_SE',
-                                   'BATCH_DATE': None,
                                    'SHAPE': 'geometry'}},
     'LSMD_CONT_LDREG': {'layer': True,
                         'type': 'polygon',
@@ -61,31 +56,39 @@ layer_info = {
                                    'BCHK': 'BCHK',
                                    'SGG_OID': 'SGG_OID',
                                    'COL_ADM_SECT_CD': 'COL_ADM_SE',
-                                   'BATCH_DATE': None,
                                    'SHAPE': 'geometry'}}
 }
 
 # 파일 이름 안에 날짜를 가져오기위한 자리수 위치
 file_date_pos = {
     # ABPM_LAND_FRST_LEDG_26_202308_Y.zip
+    # ABPM_LAND_FRST_LEDG_11_20230919_Y.zip
     'ABPM_LAND_FRST_LEDG': 23,
     # APMM_NV_JIGA_MNG_11_2018_07.zip
     'APMM_NV_JIGA_MNG': 20,
     # ABPH_LAND_MOV_HIST_26_202308.zip
+    # ABPH_LAND_MOV_HIST_11_20230918.zip
     'ABPH_LAND_MOV_HIST': 22,
     # ABPD_UNQ_NO_CHG_HIST_26_202308.zip
+    # ABPD_UNQ_NO_CHG_HIST_46_20230621.zip
     'ABPD_UNQ_NO_CHG_HIST': 24,
     # LARD_ADM_SECT_SGG_27_202307.zip
+    # LARD_ADM_SECT_SGG_43_20230825.zip
     'LARD_ADM_SECT_SGG': 21,
     # LSMD_ADM_SECT_UMD_30_202308.zip
+    # LSMD_ADM_SECT_UMD_44_20230914.zip
     'LSMD_ADM_SECT_UMD': 21,
     # LSMD_ADM_SECT_RI_41_202308.zip
+    # LSMD_ADM_SECT_RI_44_20230914.zip
     'LSMD_ADM_SECT_RI': 20,
     'LSCT_LAWDCD': 0,
     # LSMD_CONT_UI101_31_202308.zip
+    # LSMD_CONT_UI101_41_20230725.zip
     'LSMD_CONT_UI101': 19,
     # LSMD_CONT_UI201_47_202308.zip
+    # LSMD_CONT_UI201_48_20230809.zip
     'LSMD_CONT_UI201': 19,
     # LSMD_CONT_LDREG_30_202308.zip
+    # LSMD_CONT_LDREG_30_20230925.zip
     'LSMD_CONT_LDREG': 19
 }
