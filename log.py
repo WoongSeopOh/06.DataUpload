@@ -8,7 +8,7 @@ import constant
 
 
 def create_logger(logger_name):
-    str_today = str(datetime.now().strftime("%Y%m%d"))
+    str_today = str(datetime.now().strftime("%Y%m%d%H%M%S"))
 
     # Create Logger
     log_obj = logging.getLogger(logger_name)

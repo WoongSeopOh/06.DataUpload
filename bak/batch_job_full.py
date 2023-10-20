@@ -15,7 +15,7 @@ import constant
 import meta_info
 import log
 import utils
-from config import config
+import config
 
 SR_ID = 2097
 DB_GEOMETRY = 'SDO_GEOMETRY'
@@ -61,7 +61,7 @@ def db_log(arg_data_nm, prcs_type, arg_file_date, err_msg=None):
         db_con.commit()
 
     except cx_Oracle.DatabaseError as err:
-        logger.error(f"error occured!!: {str(err)}")
+        logger.error(f"Error occured!!: {str(err)}")
         cursor.close()
         db_con.close()
         sys.exit()
@@ -189,7 +189,7 @@ def insert_shp_values(layer_nm, dic_info, lyr_df, lyr_full_nm, db):
 
     except cx_Oracle.DatabaseError as err:
         logger.error(isrt_sql)
-        logger.error(f"error occured!!: {str(err)}")
+        logger.error(f"Error occured!!: {str(err)}")
     finally:
         cursor.close()
         del value_list[:]
@@ -294,7 +294,7 @@ for data in lst_batch_mng:
         # 로그
         db_log(data_nm, '2', file_date, None)
     except Exception as e:
-        logger.error(f"error occured!!: {str(e)}")
+        logger.error(f"Error occured!!: {str(e)}")
         db_log(data_nm, '3', None, str(e))
 
 

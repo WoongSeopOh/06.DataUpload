@@ -43,7 +43,8 @@ def get_folder_move_and_unzip(src_fldr, tgt_fldr, arg_data):
         move_files = get_movefile_nm(all_files, arg_data)
 
         for m_file in move_files:
-            shutil.copy(src_fldr + "/" + m_file, tgt_fldr)
+            if os.path.isfile(os.path.join(src_fldr, m_file)):
+                shutil.copy(src_fldr + "/" + m_file, tgt_fldr)
         unzip_fldr = tgt_fldr + "/unzip"
 
         # 데이터 압축해제

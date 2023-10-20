@@ -14,7 +14,7 @@ import constant
 import meta_info
 import log
 import utils
-from config import config
+import config
 
 SR_ID = 2097
 DB_GEOMETRY = 'SDO_GEOMETRY'
@@ -43,11 +43,12 @@ def get_sqlldr_nm(arg_date, arg_nm):
 
     if arg_nm == constant.LSCT_LAWDCD:
         return arg_nm
-    elif arg_nm == constant.ABPD_UNQ_NO_CHG_HIST:
-        return arg_nm + 'C'
     else:
         if len(arg_date) == 8:
-            return arg_nm + '_C'
+            if arg_nm == constant.ABPD_UNQ_NO_CHG_HIST:
+                return arg_nm + 'C'
+            else:
+                return arg_nm + '_C'
         else:
             return arg_nm
 
@@ -56,13 +57,17 @@ def get_sqlldr_nm(arg_date, arg_nm):
 def truncate_table(arg_data_nm):
     cursor = db_con.cursor()
 
+    # 예외케이스) 공시지가는 지우는 것 없고, 계속 누적해서 관리한다.
+    if arg_data_nm == constant.APMM_NV_JIGA_MNG:
+        return None
+
     try:
-        truncate_sql = "TRUNCATE TABLE GIS_MAIN." + arg_data_nm
+        truncate_sql = "TRUNCATE TABLE GIS_MAIN." + meta_info.real_data_nm.get(arg_data_nm)
         cursor.execute(truncate_sql)
         cursor.close()
 
     except cx_Oracle.DatabaseError as err:
-        logger.error(f"error occured!!: {str(err)}")
+        logger.error(f"Error occured!!: {str(err)}")
         cursor.close()
         db_con.close()
         sys.exit()
@@ -70,23 +75,30 @@ def truncate_table(arg_data_nm):
 
 # is_processing ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 def is_processing(opt, date_value, arg_month, arg_date, arg_data_nm):
-    # 예외케이스 정의
+    daily_len = 8
+    full_len = 6
+
+    # 예외케이스) 정의
     if arg_data_nm == constant.LSCT_LAWDCD:
         return True
+    if arg_data_nm == constant.APMM_NV_JIGA_MNG:
+        daily_len = 6
 
-    if opt == 'full' and date_value is not None and len(date_value) == 6:
-        if date_value <= arg_month:
-            logger.info(f"{unzip_folder}/{u_file}: T_LNDB_BATCH_MNG 테이블의 최종 업데이트 월보다 이전 정보는 업데이트할 수 없습니다.")
-            return False
-    else:
-        if date_value is not None and len(date_value) == 8:
-            if date_value <= arg_date:
+    if opt == 'full' or opt == 'jijuk_all':
+        if date_value is not None and len(date_value) == full_len:
+            if date_value > arg_month:
+                return True
+            else:
+                logger.info(f"{unzip_folder}/{u_file}: T_LNDB_BATCH_MNG 테이블의 최종 업데이트 월보다 이전 정보는 업데이트할 수 없습니다.")
+
+    elif opt == 'daily':
+        if date_value is not None and len(date_value) == daily_len:
+            if date_value > arg_date:
+                return True
+            else:
                 logger.info(f"{unzip_folder}/{u_file}: T_LNDB_BATCH_MNG 테이블의 최종 업데이트 일자보다 이전 정보는 업데이트할 수 없습니다.")
-                return False
-        else:
-            return False
 
-    return True
+    return False
 
 
 # get_parameters ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -95,11 +107,10 @@ def get_parameters(argvs):
     lst_data = None
 
     if len(argvs) > 1:
-        # daily or full
+        # daily or full or jijuk_all
         rtn_opt = argvs[1]
         if rtn_opt is None:
-            print("error - set first parameter option: daily | full")
-            sys.exit()
+            rtn_opt = 'daily'
 
         if len(argvs) > 2:
             # 날짜
@@ -108,7 +119,7 @@ def get_parameters(argvs):
                 if rtn_date.upper() == 'SKIP':
                     rtn_date = None
                     # if not utils.validate_date(rtn_date):
-                    #     print(f"error - set second parameter option: Incorrect data format({rtn_date})")
+                    #     print(f"Error - set second parameter option: Incorrect data format({rtn_date})")
                     #     sys.exit()
 
             if len(argvs) > 3:
@@ -117,7 +128,7 @@ def get_parameters(argvs):
                 if rtn_data is not None:
                     lst_data = rtn_data.split('|')
     else:
-        print(f"error - set parameter options")
+        print(f"Error - set parameter options")
         sys.exit()
 
     return rtn_opt, rtn_date, lst_data
@@ -132,9 +143,13 @@ def get_batch_master(arg_param):
         if arg_param == 'full':
             # 전체 지우고 다시올리기 (단, 지적도는 제외)
             strSQL = "SELECT DATA_NM, LAYER_YN, LAST_DAILY_UPDATE, LAST_FULL_UPDATE FROM T_LNDB_BATCH_MNG WHERE USE_YN = 'Y' AND ALL_BATCH_YN = 'Y'"
+        elif arg_param == 'jijuk_all':
+            # 지적도 올리기
+            strSQL = "SELECT DATA_NM, LAYER_YN, LAST_DAILY_UPDATE, LAST_FULL_UPDATE FROM T_LNDB_BATCH_MNG WHERE USE_YN = 'Y' AND ALL_BATCH_YN = 'N'"
         else:
             # 일변경 데이터 처리: 데이터명, 전체처리여부, 레이어여부, 마지막배치일자
             strSQL = "SELECT DATA_NM, LAYER_YN, LAST_DAILY_UPDATE, LAST_FULL_UPDATE FROM T_LNDB_BATCH_MNG WHERE USE_YN = 'Y' AND DAY_YN = 'Y'"
+
         cursor.execute(strSQL)
         for rec in cursor:
             rtn_list.append(rec)
@@ -175,12 +190,20 @@ def db_log(arg_data_nm, prcs_type, arg_file_date, err_msg=None):
         elif prcs_type == 'error':
             u_sql = "UPDATE T_LNDB_BATCH_MNG SET END_BATCH_DATE = SYSDATE, SCSS_YN = 'N', LAST_UPDATE_DATE = SYSDATE, RMK = :1 WHERE DATA_NM = :2"
             cursor.execute(u_sql, [err_msg, arg_data_nm])
+        # 초기화(테스트용)
+        elif prcs_type == 'init':
+            u_sql = "UPDATE T_LNDB_BATCH_MNG SET LAST_FULL_UPDATE = '201001', LAST_DAILY_UPDATE = '20100101', BGN_BATCH_DATE = NULL, END_BATCH_DATE = NULL, SCSS_YN = NULL, LAST_UPDATE_DATE = NULL"
+            cursor.execute(u_sql, [err_msg, arg_data_nm])
+            # truncate table
+            cursor.callproc('GIS_MAIN.P_TRUNCATE_TABLES', ['DAILY'])
+            # cursor.callproc('GIS_MAIN.P_TRUNCATE_TABLES', ['FULL'])
+            # cursor.callproc('GIS_MAIN.P_TRUNCATE_TABLES', ['ALL'])
 
         cursor.close()
         db_con.commit()
 
     except cx_Oracle.DatabaseError as err:
-        logger.error(f"error occured!!: {str(err)}")
+        logger.error(f"Error occured!!: {str(err)}")
         cursor.close()
         db_con.close()
         sys.exit()
@@ -251,13 +274,22 @@ def create_geom_obj(geom_type, geom):
 
 
 # insert_values--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-def insert_shp_values(layer_nm, dic_info, lyr_df, lyr_full_nm, db):
+def insert_shp_values(arg_date, dic_info, lyr_df, lyr_full_nm, db):
     value_list = []
     total_values = []
+    table_name = None
+    dict_fields = None
     cursor = db.cursor()
 
+    # 공시지가와 법정동코드는 테이블이므로 예외처리 안해도 됨 // 레이어인 경우는 예외 없음
+    if len(arg_date) == 6:
+        table_name = dic_info['table']
+        dict_fields = dic_info.get('fields')
+    elif len(arg_date) == 8:
+        table_name = dic_info['c_table']
+        dict_fields = dic_info.get('c_fields')
+
     # 필드에 해당하는 인서트 구문 생성
-    dict_fields = dic_info.get('fields')
     fld_body_name, fld_values = '', ''
     inx = 0
     idx = 1
@@ -267,15 +299,17 @@ def insert_shp_values(layer_nm, dic_info, lyr_df, lyr_full_nm, db):
         fld_values = fld_values + ':' + str(inx) + ','
 
     # 필드 수 만큼 바인드 변수 생성
-    isrt_sql = "INSERT INTO " + layer_nm + "(" + fld_body_name[:-1] + ") VALUES(" + fld_values[:-1] + ")"
+    isrt_sql = "INSERT INTO " + table_name + "(" + fld_body_name[:-1] + ") VALUES(" + fld_values[:-1] + ")"
     int_test = 1
     for index, row in lyr_df.iterrows():
         for fld in dict_fields.keys():
-            # TODO: 테이블마다 공간정보 필드 이름이 다르다.. OR 처리 필요..
             if fld == 'SHAPE':
-                g_type = row.geometry.geom_type
-                g_geom = row.geometry
-                geom = create_geom_obj(g_type, g_geom)
+                if row.geometry is not None:
+                    g_type = row.geometry.geom_type
+                    g_geom = row.geometry
+                    geom = create_geom_obj(g_type, g_geom)
+                else:
+                    geom = None
                 value_list.append(geom)
             else:
                 if dict_fields.get(fld) in row.keys():
@@ -308,7 +342,7 @@ def insert_shp_values(layer_nm, dic_info, lyr_df, lyr_full_nm, db):
 
     except cx_Oracle.DatabaseError as err:
         logger.error(isrt_sql)
-        logger.error(f"error occured!!: {str(err)}")
+        logger.error(f"Error occured!!: {str(err)}")
     finally:
         cursor.close()
         del value_list[:]
@@ -333,8 +367,8 @@ if __name__ == '__main__':
     for data in lst_batch_mng:
         data_nm = data[0]
         layer_yn = data[1]
-        std_date = data[2]
-        std_month = data[3]
+        std_date = data[2] if data[2] is not None else '00000000'
+        std_month = data[3] if data[3] is not None else '000000'
 
         # for debug
         # if data_nm != 'LARD_ADM_SECT_SGG':
@@ -363,7 +397,7 @@ if __name__ == '__main__':
                 db_log(data_nm, 'start', None, None)
 
                 # 전체인 경우는 먼저 삭제하고 업로드한다. // 또한 법정동코드도 무조건 삭제하고 다시 올린다.
-                if batch_opt == 'full' or (batch_opt == 'daily' and data_nm == constant.LSCT_LAWDCD):
+                if batch_opt == 'full' or batch_opt == 'jijuk_all' or (batch_opt == 'daily' and data_nm == constant.LSCT_LAWDCD):
                     truncate_table(data_nm)
 
                 # 시도별 데이터 처리
@@ -374,6 +408,7 @@ if __name__ == '__main__':
                         continue
 
                     if batch_date is None or (batch_date is not None and batch_date == file_date):
+                        # 레이어 (6개)
                         if layer_yn == 'Y' and u_file[-4:] == '.shp':
                             dict_inifo = meta_info.layer_info.get(data_nm)
                             # full name
@@ -382,8 +417,9 @@ if __name__ == '__main__':
                             if shp_df is None:
                                 logger.error(f"Wrong Shape File: {str(shp_full_nm)}")
                                 continue
-                            # Insert Data
-                            # insert_shp_values(dict_inifo['table'], dict_inifo, shp_df, shp_full_nm, db_con)
+
+                            # Insert Data (daily와, full을 다르게 처리함)
+                            insert_shp_values(file_date, dict_inifo, shp_df, shp_full_nm, db_con)
 
                             # 메모리 해제
                             del [[shp_df]]
@@ -391,7 +427,8 @@ if __name__ == '__main__':
                             shp_df = gpd.GeoDataFrame()
                             lst_prcs_date.append(file_date)
                             dict_data[data_nm].append(u_file[:-4])
-                        # LSCT_LAWDCD 법정동코드는  .csv 파일임
+
+                        # 테이블(5개)
                         elif layer_yn == 'N' and (u_file[-4:] == '.txt' or u_file[-4:] == '.csv'):
                             # 일자별 업데이트 파일은 _C 테이블에 추가한다.
                             sqlldr_nm = get_sqlldr_nm(file_date, data_nm)
@@ -416,11 +453,13 @@ if __name__ == '__main__':
                 del lst_prcs_date[:]
 
             except Exception as e:
-                logger.error(f"error occured!!: {str(e)}")
+                logger.error(f"Error occured!!: {str(e)}")
                 db_log(data_nm, 'error', None, str(e))
 
     # 작업완료된 파일 백업폴더로 이동
     # TODO: 운영시에 주석 해제
     # utils.move_and_backup_files(dict_data)
+    # 초기화 (테스트용)
+    db_log(None, 'init', None, None)
 
     logger.info('finish batch job!!')
