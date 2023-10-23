@@ -180,7 +180,7 @@ def db_log(arg_data_nm, prcs_type, arg_file_date, err_msg=None):
             else:
                 u_sql = "UPDATE T_LNDB_BATCH_MNG SET END_BATCH_DATE = SYSDATE, SCSS_YN = 'Y', LAST_UPDATE_DATE = SYSDATE WHERE DATA_NM = :1"
                 cursor.execute(u_sql, [arg_data_nm])
-        elif prcs_type == 'full':
+        elif prcs_type == 'full' or prcs_type == 'jijuk_all':
             if arg_file_date is not None:
                 u_sql = "UPDATE T_LNDB_BATCH_MNG SET LAST_FULL_UPDATE = :1, END_BATCH_DATE = SYSDATE, SCSS_YN = 'Y', LAST_UPDATE_DATE = SYSDATE WHERE DATA_NM = :2"
                 cursor.execute(u_sql, [arg_file_date, arg_data_nm])
@@ -190,14 +190,6 @@ def db_log(arg_data_nm, prcs_type, arg_file_date, err_msg=None):
         elif prcs_type == 'error':
             u_sql = "UPDATE T_LNDB_BATCH_MNG SET END_BATCH_DATE = SYSDATE, SCSS_YN = 'N', LAST_UPDATE_DATE = SYSDATE, RMK = :1 WHERE DATA_NM = :2"
             cursor.execute(u_sql, [err_msg, arg_data_nm])
-        # 초기화(테스트용)
-        elif prcs_type == 'init':
-            u_sql = "UPDATE T_LNDB_BATCH_MNG SET LAST_FULL_UPDATE = '201001', LAST_DAILY_UPDATE = '20100101', BGN_BATCH_DATE = NULL, END_BATCH_DATE = NULL, SCSS_YN = NULL, LAST_UPDATE_DATE = NULL"
-            cursor.execute(u_sql, [err_msg, arg_data_nm])
-            # truncate table
-            cursor.callproc('GIS_MAIN.P_TRUNCATE_TABLES', ['DAILY'])
-            # cursor.callproc('GIS_MAIN.P_TRUNCATE_TABLES', ['FULL'])
-            # cursor.callproc('GIS_MAIN.P_TRUNCATE_TABLES', ['ALL'])
 
         cursor.close()
         db_con.commit()
@@ -459,7 +451,6 @@ if __name__ == '__main__':
     # 작업완료된 파일 백업폴더로 이동
     # TODO: 운영시에 주석 해제
     # utils.move_and_backup_files(dict_data)
-    # 초기화 (테스트용)
-    db_log(None, 'init', None, None)
 
     logger.info('finish batch job!!')
+    exit()
