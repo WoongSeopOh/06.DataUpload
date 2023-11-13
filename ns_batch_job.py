@@ -91,14 +91,14 @@ def is_processing(opt, date_value, arg_month, arg_date, arg_data_nm):
             if date_value > arg_month:
                 return True
             else:
-                logger.info(f"{unzip_folder}/{u_file}: T_LNDB_BATCH_MNG 테이블의 최종 업데이트 월보다 이전 정보는 업데이트할 수 없습니다.")
+                logger.info(f"{unzip_folder}/{u_file}: T_LNDB_L_BATCH_MNG 테이블의 최종 업데이트 월보다 이전 정보는 업데이트할 수 없습니다.")
 
     elif opt == 'daily':
         if date_value is not None and len(date_value) == daily_len:
             if date_value > arg_date:
                 return True
             else:
-                logger.info(f"{unzip_folder}/{u_file}: T_LNDB_BATCH_MNG 테이블의 최종 업데이트 일자보다 이전 정보는 업데이트할 수 없습니다.")
+                logger.info(f"{unzip_folder}/{u_file}: T_LNDB_L_BATCH_MNG 테이블의 최종 업데이트 일자보다 이전 정보는 업데이트할 수 없습니다.")
 
     return False
 
@@ -140,13 +140,13 @@ def get_batch_master(arg_param):
     try:
         if arg_param == 'full':
             # 전체 지우고 다시올리기 (단, 지적도는 제외)
-            strSQL = "SELECT DATA_NM, LAYER_YN, LAST_DAILY_UPDATE, LAST_FULL_UPDATE FROM T_LNDB_BATCH_MNG WHERE USE_YN = 'Y' AND ALL_BATCH_YN = 'Y'"
+            strSQL = "SELECT DATA_NM, LAYER_YN, LAST_DAILY_UPDATE, LAST_FULL_UPDATE FROM T_LNDB_L_BATCH_MNG WHERE USE_YN = 'Y' AND ALL_BATCH_YN = 'Y'"
         elif arg_param == 'jijuk_all':
             # 지적도 올리기
-            strSQL = "SELECT DATA_NM, LAYER_YN, LAST_DAILY_UPDATE, LAST_FULL_UPDATE FROM T_LNDB_BATCH_MNG WHERE USE_YN = 'Y' AND ALL_BATCH_YN = 'N'"
+            strSQL = "SELECT DATA_NM, LAYER_YN, LAST_DAILY_UPDATE, LAST_FULL_UPDATE FROM T_LNDB_L_BATCH_MNG WHERE USE_YN = 'Y' AND ALL_BATCH_YN = 'N'"
         else:
             # 일변경 데이터 처리: 데이터명, 전체처리여부, 레이어여부, 마지막배치일자
-            strSQL = "SELECT DATA_NM, LAYER_YN, LAST_DAILY_UPDATE, LAST_FULL_UPDATE FROM T_LNDB_BATCH_MNG WHERE USE_YN = 'Y' AND DAY_YN = 'Y'"
+            strSQL = "SELECT DATA_NM, LAYER_YN, LAST_DAILY_UPDATE, LAST_FULL_UPDATE FROM T_LNDB_L_BATCH_MNG WHERE USE_YN = 'Y' AND DAY_YN = 'Y'"
 
         cursor.execute(strSQL)
         for rec in cursor:
@@ -169,24 +169,24 @@ def db_log(arg_data_nm, prcs_type, arg_file_date, err_msg=None):
     try:
         # prcs_type : 1) 시작, 2) 변동분, 3) 전체분, 4) 에러
         if prcs_type == 'start':
-            u_sql = "UPDATE T_LNDB_BATCH_MNG SET BGN_BATCH_DATE = SYSDATE, LAST_UPDATE_DATE = SYSDATE, END_BATCH_DATE = NULL, SCSS_YN = NULL, RMK = NULL WHERE DATA_NM = :1"
+            u_sql = "UPDATE T_LNDB_L_BATCH_MNG SET BGN_BATCH_DATE = SYSDATE, LAST_UPDATE_DATE = SYSDATE, END_BATCH_DATE = NULL, SCSS_YN = NULL, RMK = NULL WHERE DATA_NM = :1"
             cursor.execute(u_sql, [arg_data_nm])
         elif prcs_type == 'daily':
             if arg_file_date is not None:
-                u_sql = "UPDATE T_LNDB_BATCH_MNG SET LAST_DAILY_UPDATE = :1, END_BATCH_DATE = SYSDATE, SCSS_YN = 'Y', LAST_UPDATE_DATE = SYSDATE WHERE DATA_NM = :2"
+                u_sql = "UPDATE T_LNDB_L_BATCH_MNG SET LAST_DAILY_UPDATE = :1, END_BATCH_DATE = SYSDATE, SCSS_YN = 'Y', LAST_UPDATE_DATE = SYSDATE WHERE DATA_NM = :2"
                 cursor.execute(u_sql, [arg_file_date, arg_data_nm])
             else:
-                u_sql = "UPDATE T_LNDB_BATCH_MNG SET END_BATCH_DATE = SYSDATE, SCSS_YN = 'Y', LAST_UPDATE_DATE = SYSDATE WHERE DATA_NM = :1"
+                u_sql = "UPDATE T_LNDB_L_BATCH_MNG SET END_BATCH_DATE = SYSDATE, SCSS_YN = 'Y', LAST_UPDATE_DATE = SYSDATE WHERE DATA_NM = :1"
                 cursor.execute(u_sql, [arg_data_nm])
         elif prcs_type == 'full' or prcs_type == 'jijuk_all':
             if arg_file_date is not None:
-                u_sql = "UPDATE T_LNDB_BATCH_MNG SET LAST_FULL_UPDATE = :1, END_BATCH_DATE = SYSDATE, SCSS_YN = 'Y', LAST_UPDATE_DATE = SYSDATE WHERE DATA_NM = :2"
+                u_sql = "UPDATE T_LNDB_L_BATCH_MNG SET LAST_FULL_UPDATE = :1, END_BATCH_DATE = SYSDATE, SCSS_YN = 'Y', LAST_UPDATE_DATE = SYSDATE WHERE DATA_NM = :2"
                 cursor.execute(u_sql, [arg_file_date, arg_data_nm])
             else:
-                u_sql = "UPDATE T_LNDB_BATCH_MNG SET END_BATCH_DATE = SYSDATE, SCSS_YN = 'Y', LAST_UPDATE_DATE = SYSDATE WHERE DATA_NM = :1"
+                u_sql = "UPDATE T_LNDB_L_BATCH_MNG SET END_BATCH_DATE = SYSDATE, SCSS_YN = 'Y', LAST_UPDATE_DATE = SYSDATE WHERE DATA_NM = :1"
                 cursor.execute(u_sql, [arg_data_nm])
         elif prcs_type == 'error':
-            u_sql = "UPDATE T_LNDB_BATCH_MNG SET END_BATCH_DATE = SYSDATE, SCSS_YN = 'N', LAST_UPDATE_DATE = SYSDATE, RMK = :1 WHERE DATA_NM = :2"
+            u_sql = "UPDATE T_LNDB_L_BATCH_MNG SET END_BATCH_DATE = SYSDATE, SCSS_YN = 'N', LAST_UPDATE_DATE = SYSDATE, RMK = :1 WHERE DATA_NM = :2"
             cursor.execute(u_sql, [err_msg, arg_data_nm])
 
         cursor.close()

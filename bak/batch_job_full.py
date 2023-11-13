@@ -48,13 +48,13 @@ def db_log(arg_data_nm, prcs_type, arg_file_date, err_msg=None):
     try:
         # prcs_type : 1) 시작, 2) 종료, 3) 에러
         if prcs_type == '1':
-            u_sql = "UPDATE T_LNDB_BATCH_MNG SET LAST_DAILY_UPDATE = :1, BGN_BATCH_DATE = SYSDATE, LAST_UPDATE_DATE = SYSDATE, END_BATCH_DATE = NULL, SCSS_YN = NULL, RMK = NULL WHERE DATA_NM = :2"
+            u_sql = "UPDATE T_LNDB_L_BATCH_MNG SET LAST_DAILY_UPDATE = :1, BGN_BATCH_DATE = SYSDATE, LAST_UPDATE_DATE = SYSDATE, END_BATCH_DATE = NULL, SCSS_YN = NULL, RMK = NULL WHERE DATA_NM = :2"
             cursor.execute(u_sql, [arg_file_date, arg_data_nm])
         elif prcs_type == '2':
-            u_sql = "UPDATE T_LNDB_BATCH_MNG SET END_BATCH_DATE = SYSDATE, SCSS_YN = 'Y', LAST_UPDATE_DATE = SYSDATE WHERE DATA_NM = :1"
+            u_sql = "UPDATE T_LNDB_L_BATCH_MNG SET END_BATCH_DATE = SYSDATE, SCSS_YN = 'Y', LAST_UPDATE_DATE = SYSDATE WHERE DATA_NM = :1"
             cursor.execute(u_sql, [arg_data_nm])
         else:
-            u_sql = "UPDATE T_LNDB_BATCH_MNG SET END_BATCH_DATE = SYSDATE, SCSS_YN = 'N', LAST_UPDATE_DATE = SYSDATE, RMK = :1 WHERE DATA_NM = :2"
+            u_sql = "UPDATE T_LNDB_L_BATCH_MNG SET END_BATCH_DATE = SYSDATE, SCSS_YN = 'N', LAST_UPDATE_DATE = SYSDATE, RMK = :1 WHERE DATA_NM = :2"
             cursor.execute(u_sql, [err_msg, arg_data_nm])
 
         cursor.close()
@@ -204,7 +204,7 @@ center_ling_gpd = None
 
 try:
     # 데이터명, 전체처리여부, 레이어여부, 마지막배치일자
-    strSQL = "SELECT DATA_NM, ALL_BATCH_YN, LAYER_YN, BGN_BATCH_DATE, END_BATCH_DATE FROM T_LNDB_BATCH_MNG WHERE USE_YN = 'Y'"
+    strSQL = "SELECT DATA_NM, ALL_BATCH_YN, LAYER_YN, BGN_BATCH_DATE, END_BATCH_DATE FROM T_LNDB_L_BATCH_MNG WHERE USE_YN = 'Y'"
     db_cur.execute(strSQL)
     for rec in db_cur:
         lst_batch_mng.append(rec)
