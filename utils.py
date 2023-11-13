@@ -122,3 +122,17 @@ def validate_date(arg_date):
     except ValueError:
         logger.error("Incorrect data format({0}), should be YYYYMMDD!".format(arg_date))
         return False
+
+
+# validate_date ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+def validate_geom(geometry):
+    if geometry is None:
+        tmp = ''
+    else:
+        if geometry.has_z:
+            tmp = geometry.wkt.replace('POLYGON Z', 'POLYGON').replace(' 0', '')
+        else:
+            tmp = geometry.wkt
+
+    return tmp
+

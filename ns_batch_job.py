@@ -16,7 +16,10 @@ import log
 import utils
 import config
 
-SR_ID = 2097
+# TODO: 좌표변환이 필요할 경우 사용. 현재는 원본 그대로 업로드 진행
+FROM_SR_ID = 2097
+TO_SR_ID = 2097
+
 DB_GEOMETRY = 'SDO_GEOMETRY'
 GEOM_TYPE_POINT = 'MULTIPOINT'
 GEOM_TYPE_POLYLINE = 'MULTILINE'
@@ -57,7 +60,6 @@ def get_sqlldr_nm(arg_date, arg_nm):
 def truncate_table(arg_data_nm):
     cursor = db_con.cursor()
 
-    # 예외케이스) 공시지가는 지우는 것 없고, 계속 누적해서 관리한다.
     if arg_data_nm == constant.APMM_NV_JIGA_MNG:
         return None
 
@@ -118,10 +120,6 @@ def get_parameters(argvs):
             if rtn_date is not None:
                 if rtn_date.upper() == 'SKIP':
                     rtn_date = None
-                    # if not utils.validate_date(rtn_date):
-                    #     print(f"Error - set second parameter option: Incorrect data format({rtn_date})")
-                    #     sys.exit()
-
             if len(argvs) > 3:
                 # 특정 데이터만
                 rtn_data = argvs[3]
@@ -232,7 +230,7 @@ def create_geom_obj(geom_type, geom):
         lst_elem_info.extend([1, 1003, 1])
 
     # SR_ID 전역변수
-    obj.SDO_SRID = SR_ID
+    obj.SDO_SRID = TO_SR_ID
     if geom_type == 'Point':
         pointTypeObj = db_con.gettype("MDSYS.SDO_POINT_TYPE")
         obj.SDO_POINT = pointTypeObj.newobject()
@@ -273,7 +271,6 @@ def insert_shp_values(arg_date, dic_info, lyr_df, lyr_full_nm, db):
     dict_fields = None
     cursor = db.cursor()
 
-    # 공시지가와 법정동코드는 테이블이므로 예외처리 안해도 됨 // 레이어인 경우는 예외 없음
     if len(arg_date) == 6:
         table_name = dic_info['table']
         dict_fields = dic_info.get('fields')
@@ -319,8 +316,6 @@ def insert_shp_values(arg_date, dic_info, lyr_df, lyr_full_nm, db):
 
     try:
         # Performance
-        # cursor.setinputsizes(None, 20)  --> 각 컬럼의 최대 크기 지정 // 숫자는 None, 컬럼마다 String의 경우 20  .. 컬럼이 다섯개면.. (1, 3, 4, 5, 6) 이런식?
-        # 큰 데이터 이유로 executemany라고 해도, 나눠서 인서트 필요 (Commit, 로그 등등)
         start_pos = 0
         batch_size = 10000
         total_size = 0
@@ -348,7 +343,6 @@ if __name__ == '__main__':
     batch_opt, batch_date, lst_dataset = get_parameters(sys.argv)
     logger.info(f"parameters : {batch_opt}, {batch_date}, {lst_dataset}")
 
-    # 1) 마스터 정보 DB에서 읽어오기DATA_NM VARCHAR2(64 CHAR),
     lst_prcs_date = list()
     lst_batch_mng = get_batch_master(batch_opt)
 
@@ -363,8 +357,8 @@ if __name__ == '__main__':
         std_month = data[3] if data[3] is not None else '000000'
 
         # for debug
-        # if data_nm != 'LARD_ADM_SECT_SGG':
-        #     continue
+        if data_nm != 'LSMD_CONT_UI101':
+            continue
 
         # 실행파라미터에 데이터가 명시되었을 경우 해당 데이터만 처리함.
         if lst_dataset is None or (lst_dataset is not None and data_nm in lst_dataset):
@@ -406,6 +400,11 @@ if __name__ == '__main__':
                             # full name
                             shp_full_nm = os.path.join(unzip_folder, u_file)
                             shp_df = gpd.read_file(shp_full_nm, encoding='euckr')
+
+                            # TODO: 좌표변환이 필요할 경우
+                            # shp_df = shp_df.set_crs(epsg=FROM_SR_ID, allow_override=True)
+                            # shp_df.geometry = shp_df.geometry.to_crs('EPSG:5179')
+
                             if shp_df is None:
                                 logger.error(f"Wrong Shape File: {str(shp_full_nm)}")
                                 continue
@@ -449,7 +448,6 @@ if __name__ == '__main__':
                 db_log(data_nm, 'error', None, str(e))
 
     # 작업완료된 파일 백업폴더로 이동
-    # TODO: 운영시에 주석 해제
     # utils.move_and_backup_files(dict_data)
 
     logger.info('finish batch job!!')
