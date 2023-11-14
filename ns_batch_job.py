@@ -356,9 +356,9 @@ if __name__ == '__main__':
         std_date = data[2] if data[2] is not None else '00000000'
         std_month = data[3] if data[3] is not None else '000000'
 
-        # for debug
-        if data_nm != 'LSMD_CONT_UI101':
-            continue
+        # # for debug
+        # if data_nm != 'LSMD_CONT_UI101':
+        #     continue
 
         # 실행파라미터에 데이터가 명시되었을 경우 해당 데이터만 처리함.
         if lst_dataset is None or (lst_dataset is not None and data_nm in lst_dataset):
@@ -447,8 +447,20 @@ if __name__ == '__main__':
                 logger.error(f"Error occured!!: {str(e)}")
                 db_log(data_nm, 'error', None, str(e))
 
+    # 프로시져 콜 필요
+    logger.info('call batch job procedure')
+    cursor = db_con.cursor()
+    try:
+        cursor.callproc('GIS_MAIN.P_LSMD_CONT_UI101')
+        cursor.close()
+    except cx_Oracle.DatabaseError as err:
+        logger.error(f"Error occured!!: {str(err)}")
+        cursor.close()
+        db_con.close()
+
+    logger.info('finish procedure')
     # 작업완료된 파일 백업폴더로 이동
-    # utils.move_and_backup_files(dict_data)
+    utils.move_and_backup_files(dict_data)
 
     logger.info('finish batch job!!')
     exit()

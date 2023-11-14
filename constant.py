@@ -37,52 +37,52 @@ data_folder_list = {
 
 # Prod ---------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-# TARGET
-source_folder_path = r'/DATA/landinfo/temp/'
-
-# DATA
-target_folder_path = r'/GIS_MAIN/'
-
-# SQLLDR 관련 폴더
-sqlldr_ctr_folder = r'/DATA/landinfo/nsdailybatch/sqlldr/'
-sqlldr_log_folder = sqlldr_ctr_folder + r'logs'
-sqlldr_bad_folder = sqlldr_ctr_folder + r'bad'
-
-# SHP 생성 PATH
-create_shp_path = r'/DATA/landinfo/nsdailybatch/nsdi-data/shp/'
-
-# LOG 폴더 PATH
-log_path = r'/DATA/landinfo/nsdailybatch/log/'
-
-# Centerline Dissolve Data Path
-center_line_shp = r'/DATA/landinfo/nsdailybatch/centerline/center_line_bf_dissolve.shp'
-
-# Backup Folder
-backup_path = r'/DATA/landinfo/nsdailybatch/backup/'
-
-
-# Dev ---------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-# # TARGET (전체 데이터가 폴더별로 있다)
-# source_folder_path = r'C:/DATA/landinfo/temp/'
+# # TARGET
+# source_folder_path = r'/DATA/landinfo/temp/'
 #
-# # DATA(날짜별 데이터별 unzip)
-# # (f'{FOLDER_PATH.DATA_FOLDER_PATH}/{target_date}/{FOLDER_PATH.LSMD_CONT_LDREG}/unzip/*.shp'
-# target_folder_path = r'C:/GIS_MAIN/'
+# # DATA
+# target_folder_path = r'/GIS_MAIN/'
 #
 # # SQLLDR 관련 폴더
-# sqlldr_ctr_folder = r'C:/DATA/landinfo/nsdailybatch/sqlldr/'
+# sqlldr_ctr_folder = r'/DATA/landinfo/nsdailybatch/sqlldr/'
 # sqlldr_log_folder = sqlldr_ctr_folder + r'logs'
 # sqlldr_bad_folder = sqlldr_ctr_folder + r'bad'
 #
 # # SHP 생성 PATH
-# create_shp_path = r'C:/DATA/landinfo/nsdailybatch/nsdi-data/shp/'
+# create_shp_path = r'/DATA/landinfo/nsdailybatch/nsdi-data/shp/'
 #
 # # LOG 폴더 PATH
-# log_path = r'C:/DATA/landinfo/nsdailybatch/log/'
+# log_path = r'/DATA/landinfo/nsdailybatch/log/'
 #
 # # Centerline Dissolve Data Path
-# center_line_shp = r'C:/DATA/landinfo/nsdailybatch/centerline/center_line_bf_dissolve.shp'
+# center_line_shp = r'/DATA/landinfo/nsdailybatch/centerline/center_line_bf_dissolve.shp'
 #
 # # Backup Folder
-# backup_path = r'C:/DATA/landinfo/backup/'
+# backup_path = r'/DATA/landinfo/nsdailybatch/backup/'
+
+
+# Dev ---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# TARGET (전체 데이터가 폴더별로 있다)
+source_folder_path = r'C:/DATA/landinfo/temp/'
+
+# DATA(날짜별 데이터별 unzip)
+# (f'{FOLDER_PATH.DATA_FOLDER_PATH}/{target_date}/{FOLDER_PATH.LSMD_CONT_LDREG}/unzip/*.shp'
+target_folder_path = r'C:/GIS_MAIN/'
+
+# SQLLDR 관련 폴더
+sqlldr_ctr_folder = r'C:/DATA/landinfo/nsdailybatch/sqlldr/'
+sqlldr_log_folder = sqlldr_ctr_folder + r'logs'
+sqlldr_bad_folder = sqlldr_ctr_folder + r'bad'
+
+# SHP 생성 PATH
+create_shp_path = r'C:/DATA/landinfo/nsdailybatch/nsdi-data/shp/'
+
+# LOG 폴더 PATH
+log_path = r'C:/DATA/landinfo/nsdailybatch/log/'
+
+# Centerline Dissolve Data Path
+center_line_shp = r'C:/DATA/landinfo/nsdailybatch/centerline/center_line_bf_dissolve.shp'
+
+# Backup Folder
+backup_path = r'C:/DATA/landinfo/backup/'
