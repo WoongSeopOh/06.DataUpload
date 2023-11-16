@@ -451,7 +451,7 @@ if __name__ == '__main__':
     logger.info('call batch job procedure')
     cursor = db_con.cursor()
     try:
-        cursor.callproc('GIS_MAIN.P_LSMD_CONT_UI101')
+        cursor.callproc('GIS_MAIN.P_UPDATE_DAILY')
         cursor.close()
     except cx_Oracle.DatabaseError as err:
         logger.error(f"Error occured!!: {str(err)}")
