@@ -41,7 +41,7 @@ data_folder_list = {
 # source_folder_path = r'/DATA/landinfo/temp/'
 #
 # # DATA
-# target_folder_path = r'/GIS_MAIN/'
+# target_folder_path = r'/GIS_MAIN/batchjob/'
 #
 # # SQLLDR 관련 폴더
 # sqlldr_ctr_folder = r'/DATA/landinfo/nsdailybatch/sqlldr/'
@@ -58,7 +58,7 @@ data_folder_list = {
 # center_line_shp = r'/DATA/landinfo/nsdailybatch/centerline/center_line_bf_dissolve.shp'
 #
 # # Backup Folder
-# backup_path = r'/DATA/landinfo/nsdailybatch/backup/'
+# backup_path = r'/GIS_MAIN/databackup/'
 
 
 # Dev ---------------------------------------------------------------------------------------------------------------------------------------------------------------

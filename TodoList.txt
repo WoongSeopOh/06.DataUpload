@@ -1,0 +1,3 @@
+# 1. 배치를 월과 일로 나눔
+# 2.T_LNDB_L_BATCH_MNG 마스터 정보 업그레이드
+# 3.P_UPDATE_MONTH 새로 제작 필요

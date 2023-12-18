@@ -1,6 +1,8 @@
-
 # ---------------------------------------------------------------------------------------------------------------------------------------------------
-# NS센터 데이터 업로드 배치프로그램 (일변경분만 처리)
+# NS센터 데이터 업로드 배치프로그램 (월배치)
+# 대상 데이터: APMM_NV_JIGA_MNG(속성), LARD_ADM_SECT_SGG, LSMD_ADM_SECT_UMD, LSMD_ADM_SECT_RI, LSCT_LAWDCD, LSMD_CONT_UI101, LSMD_CONT_UI201, LSMD_CONT_LDREG
+# 설명: 월변동 데이터를 업로드하고, 용지도, 용지경계 등을 새로 생성한다.
+# 파라미터: (YYYYMM) -  숫자 6자리가 아닌 경우 Return
 # ---------------------------------------------------------------------------------------------------------------------------------------------------
 import re
 import sys
@@ -16,9 +18,7 @@ import log
 import utils
 import config
 
-# TODO: 좌표변환이 필요할 경우 사용. 현재는 원본 그대로 업로드 진행
-FROM_SR_ID = 2097
-TO_SR_ID = 2097
+SR_ID = 5174
 
 DB_GEOMETRY = 'SDO_GEOMETRY'
 GEOM_TYPE_POINT = 'MULTIPOINT'
@@ -34,16 +34,13 @@ elementInfoTypeObj = db_con.gettype("MDSYS.SDO_ELEM_INFO_ARRAY")
 ordinateTypeObj = db_con.gettype("MDSYS.SDO_ORDINATE_ARRAY")
 
 logger = log.logger
-execute_day = str(datetime.now().strftime("%Y%m%d"))
+execute_day = str(datetime.now().strftime("%Y%m%d%H%M%S"))
 
-# 오라클 nls_lang : AMERICAN_AMERICA.KO16MSWIN949
-# os.environ['NLS_LANG'] = ".AL32UTF8"
 os.environ['NLS_LANG'] = "AMERICAN_AMERICA.KO16MSWIN949"
 
 
 # get_sqlldr_nm ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 def get_sqlldr_nm(arg_date, arg_nm):
-
     if arg_nm == constant.LSCT_LAWDCD:
         return arg_nm
     else:
@@ -58,25 +55,25 @@ def get_sqlldr_nm(arg_date, arg_nm):
 
 # truncate_table ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 def truncate_table(arg_data_nm):
-    cursor = db_con.cursor()
+    db_cursor = db_con.cursor()
 
     if arg_data_nm == constant.APMM_NV_JIGA_MNG:
         return None
 
     try:
         truncate_sql = "TRUNCATE TABLE GIS_MAIN." + meta_info.real_data_nm.get(arg_data_nm)
-        cursor.execute(truncate_sql)
-        cursor.close()
+        db_cursor.execute(truncate_sql)
+        db_cursor.close()
 
-    except cx_Oracle.DatabaseError as err:
-        logger.error(f"Error occured!!: {str(err)}")
-        cursor.close()
+    except cx_Oracle.DatabaseError as Err:
+        logger.error(f"Error occured!!: {str(Err)}")
+        db_cursor.close()
         db_con.close()
         sys.exit()
 
 
 # is_processing ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-def is_processing(opt, date_value, arg_month, arg_date, arg_data_nm):
+def is_processing(opt, date_value, arg_month, arg_data_nm):
     daily_len = 8
     full_len = 6
 
@@ -86,76 +83,46 @@ def is_processing(opt, date_value, arg_month, arg_date, arg_data_nm):
     if arg_data_nm == constant.APMM_NV_JIGA_MNG:
         daily_len = 6
 
-    if opt == 'full' or opt == 'jijuk_all':
-        if date_value is not None and len(date_value) == full_len:
-            if date_value > arg_month:
-                return True
-            else:
-                logger.info(f"{unzip_folder}/{u_file}: T_LNDB_L_BATCH_MNG 테이블의 최종 업데이트 월보다 이전 정보는 업데이트할 수 없습니다.")
-
-    elif opt == 'daily':
-        if date_value is not None and len(date_value) == daily_len:
-            if date_value > arg_date:
-                return True
-            else:
-                logger.info(f"{unzip_folder}/{u_file}: T_LNDB_L_BATCH_MNG 테이블의 최종 업데이트 일자보다 이전 정보는 업데이트할 수 없습니다.")
+    if date_value is not None and len(date_value) == full_len:
+        if date_value > arg_month:
+            return True
+        else:
+            logger.info(f"{unzip_folder}/{u_file}: T_LNDB_L_BATCH_MNG 테이블의 최종 업데이트 월보다 이전 정보는 업데이트할 수 없습니다.")
 
     return False
 
 
 # get_parameters ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 def get_parameters(argvs):
-    rtn_date = None
-    lst_data = None
 
     if len(argvs) > 1:
-        # daily or full or jijuk_all
-        rtn_opt = argvs[1]
-        if rtn_opt is None:
-            rtn_opt = 'daily'
-
-        if len(argvs) > 2:
-            # 날짜
-            rtn_date = argvs[2]
-            if rtn_date is not None:
-                if rtn_date.upper() == 'SKIP':
-                    rtn_date = None
-            if len(argvs) > 3:
-                # 특정 데이터만
-                rtn_data = argvs[3]
-                if rtn_data is not None:
-                    lst_data = rtn_data.split('|')
+        arg_date = argvs[1]
+        if arg_date.isdigit() and len(arg_date) == 6:
+            return arg_date
+        else:
+            logger.error(f"파라미터는 YYYYMM 구성의 여섯자리 숫자여야 합니다.")
+            sys.exit()
     else:
-        print(f"Error - set parameter options")
+        logger.error(f"파라미터는 YYYYMM 구성의 여섯자리 숫자여야 합니다.")
         sys.exit()
-
-    return rtn_opt, rtn_date, lst_data
 
 
 # get_batch_master ----------------------------------------------------------------------------------------------------------------------------------------------------------------------
 def get_batch_master(arg_param):
-    cursor = db_con.cursor()
+    db_cursor = db_con.cursor()
 
     rtn_list = list()
     try:
-        if arg_param == 'full':
-            # 전체 지우고 다시올리기 (단, 지적도는 제외)
-            strSQL = "SELECT DATA_NM, LAYER_YN, LAST_DAILY_UPDATE, LAST_FULL_UPDATE FROM T_LNDB_L_BATCH_MNG WHERE USE_YN = 'Y' AND ALL_BATCH_YN = 'Y'"
-        elif arg_param == 'jijuk_all':
-            # 지적도 올리기
-            strSQL = "SELECT DATA_NM, LAYER_YN, LAST_DAILY_UPDATE, LAST_FULL_UPDATE FROM T_LNDB_L_BATCH_MNG WHERE USE_YN = 'Y' AND ALL_BATCH_YN = 'N'"
-        else:
-            # 일변경 데이터 처리: 데이터명, 전체처리여부, 레이어여부, 마지막배치일자
-            strSQL = "SELECT DATA_NM, LAYER_YN, LAST_DAILY_UPDATE, LAST_FULL_UPDATE FROM T_LNDB_L_BATCH_MNG WHERE USE_YN = 'Y' AND DAY_YN = 'Y'"
+        strSQL = "SELECT DATA_NM, LAYER_YN, LAST_DAILY_UPDATE, LAST_FULL_UPDATE FROM T_LNDB_L_BATCH_MNG WHERE USE_YN = 'Y' AND ALL_BATCH_YN = 'Y' AND LAST_FULL_UPDATE < " + arg_param
 
-        cursor.execute(strSQL)
-        for rec in cursor:
+        db_cursor.execute(strSQL)
+        for rec in db_cursor:
             rtn_list.append(rec)
-        cursor.close()
+        db_cursor.close()
 
     except cx_Oracle.DatabaseError as e:
         logger.error(f"Database Error Occured: {str(e)}")
-        cursor.close()
+        db_cursor.close()
         db_con.close()
         sys.exit()
 
@@ -164,37 +131,30 @@ def get_batch_master(arg_param):
 
 # db_log----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 def db_log(arg_data_nm, prcs_type, arg_file_date, err_msg=None):
-    cursor = db_con.cursor()
+    db_cursor = db_con.cursor()
 
     try:
         # prcs_type : 1) 시작, 2) 변동분, 3) 전체분, 4) 에러
         if prcs_type == 'start':
             u_sql = "UPDATE T_LNDB_L_BATCH_MNG SET BGN_BATCH_DATE = SYSDATE, LAST_UPDATE_DATE = SYSDATE, END_BATCH_DATE = NULL, SCSS_YN = NULL, RMK = NULL WHERE DATA_NM = :1"
-            cursor.execute(u_sql, [arg_data_nm])
-        elif prcs_type == 'daily':
-            if arg_file_date is not None:
-                u_sql = "UPDATE T_LNDB_L_BATCH_MNG SET LAST_DAILY_UPDATE = :1, END_BATCH_DATE = SYSDATE, SCSS_YN = 'Y', LAST_UPDATE_DATE = SYSDATE WHERE DATA_NM = :2"
-                cursor.execute(u_sql, [arg_file_date, arg_data_nm])
-            else:
-                u_sql = "UPDATE T_LNDB_L_BATCH_MNG SET END_BATCH_DATE = SYSDATE, SCSS_YN = 'Y', LAST_UPDATE_DATE = SYSDATE WHERE DATA_NM = :1"
-                cursor.execute(u_sql, [arg_data_nm])
-        elif prcs_type == 'full' or prcs_type == 'jijuk_all':
+            db_cursor.execute(u_sql, [arg_data_nm])
+        elif prcs_type == 'finish':
             if arg_file_date is not None:
                 u_sql = "UPDATE T_LNDB_L_BATCH_MNG SET LAST_FULL_UPDATE = :1, END_BATCH_DATE = SYSDATE, SCSS_YN = 'Y', LAST_UPDATE_DATE = SYSDATE WHERE DATA_NM = :2"
-                cursor.execute(u_sql, [arg_file_date, arg_data_nm])
+                db_cursor.execute(u_sql, [arg_file_date, arg_data_nm])
             else:
                 u_sql = "UPDATE T_LNDB_L_BATCH_MNG SET END_BATCH_DATE = SYSDATE, SCSS_YN = 'Y', LAST_UPDATE_DATE = SYSDATE WHERE DATA_NM = :1"
-                cursor.execute(u_sql, [arg_data_nm])
+                db_cursor.execute(u_sql, [arg_data_nm])
         elif prcs_type == 'error':
             u_sql = "UPDATE T_LNDB_L_BATCH_MNG SET END_BATCH_DATE = SYSDATE, SCSS_YN = 'N', LAST_UPDATE_DATE = SYSDATE, RMK = :1 WHERE DATA_NM = :2"
-            cursor.execute(u_sql, [err_msg, arg_data_nm])
+            db_cursor.execute(u_sql, [err_msg, arg_data_nm])
 
-        cursor.close()
+        db_cursor.close()
         db_con.commit()
 
-    except cx_Oracle.DatabaseError as err:
-        logger.error(f"Error occured!!: {str(err)}")
-        cursor.close()
+    except cx_Oracle.DatabaseError as Err:
+        logger.error(f"Error occured!!: {str(Err)}")
+        db_cursor.close()
         db_con.close()
         sys.exit()
 
@@ -230,7 +190,7 @@ def create_geom_obj(geom_type, geom):
         lst_elem_info.extend([1, 1003, 1])
 
     # SR_ID 전역변수
-    obj.SDO_SRID = TO_SR_ID
+    obj.SDO_SRID = SR_ID
     if geom_type == 'Point':
         pointTypeObj = db_con.gettype("MDSYS.SDO_POINT_TYPE")
         obj.SDO_POINT = pointTypeObj.newobject()
@@ -252,7 +212,7 @@ def create_geom_obj(geom_type, geom):
                 for pt in g.exterior.coords:
                     lst_pts.extend([pt[0], pt[1]])
                 if i < int_parts - 1:
-                    lst_elem_info.extend([len(lst_pts)+1, type_var, 1])
+                    lst_elem_info.extend([len(lst_pts) + 1, type_var, 1])
                 i += 1
 
         obj.SDO_ELEM_INFO.extend(lst_elem_info)
@@ -335,123 +295,130 @@ def insert_shp_values(arg_date, dic_info, lyr_df, lyr_full_nm, db):
         del value_list[:]
 
 
+def is_truncate(arg_files, arg_data_nm, arg_batch_date):
+    pass
+    # TODO: 공시자가의 경우 TRUNCATE 하지 않고, 계속 쌓는다.
+    return False
+
+
 # Entry Point ---------------------------------------------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
     dict_data = dict()
     logger.info('start batch_job_day!!')
     # 파라미터 셋팅 (변동분처리인지, 전체인지) / 특정날짜값이 있는지..
-    batch_opt, batch_date, lst_dataset = get_parameters(sys.argv)
-    logger.info(f"parameters : {batch_opt}, {batch_date}, {lst_dataset}")
+    batch_date = get_parameters(sys.argv)
+    logger.info(f"parameters : {batch_date}")
 
     lst_prcs_date = list()
-    lst_batch_mng = get_batch_master(batch_opt)
+    # 전체 데이터 올리는 대상 중 batch_date 날짜보다 이전 데이터만 가져온다.
+    lst_batch_mng = get_batch_master(batch_date)
 
     # 2) 작업폴더 생성
     utils.create_job_folder(constant.target_folder_path + execute_day)
+    logger.info("create job folder")
 
     # 데이터별로 처리
     for data in lst_batch_mng:
         data_nm = data[0]
         layer_yn = data[1]
-        std_date = data[2] if data[2] is not None else '00000000'
+        # std_date = data[2] if data[2] is not None else '00000000'
         std_month = data[3] if data[3] is not None else '000000'
 
-        # # for debug
-        # if data_nm != 'LSMD_CONT_UI101':
-        #     continue
-
         # 실행파라미터에 데이터가 명시되었을 경우 해당 데이터만 처리함.
-        if lst_dataset is None or (lst_dataset is not None and data_nm in lst_dataset):
-            dict_data[data_nm] = list()
-            logger.info(f"{data_nm}: NS Data Upload Processing Startd!! -----------------------------------")
-            # NS센터에서 전송된 원본 압축파일 위치
-            try:
-                int_pos = meta_info.file_date_pos.get(data_nm)
-                source_folder_nm = constant.source_folder_path + data_nm
-                # 압축파일이 풀릴 위치
-                target_folder_nm = constant.target_folder_path + execute_day + '/' + data_nm
-                utils.create_job_folder(target_folder_nm)
-                utils.create_job_folder(target_folder_nm + '/unzip')
+        dict_data[data_nm] = list()
+        logger.info(f"{data_nm}: NS Data Upload Processing Startd!! -----------------------------------")
+        # NS센터에서 전송된 원본 압축파일 위치
+        try:
+            int_pos = meta_info.file_date_pos.get(data_nm)
+            source_folder_nm = constant.source_folder_path + data_nm
+            # 압축파일이 풀릴 위치
+            target_folder_nm = constant.target_folder_path + execute_day + '/' + data_nm
+            utils.create_job_folder(target_folder_nm)
+            utils.create_job_folder(target_folder_nm + '/unzip')
 
-                unzip_folder = utils.get_folder_move_and_unzip(source_folder_nm, target_folder_nm, data_nm)
-                if unzip_folder is None:
+            unzip_folder = utils.get_folder_move_and_unzip(source_folder_nm, target_folder_nm, data_nm)
+            if unzip_folder is None:
+                continue
+            logger.info(f"{unzip_folder}: Unzip and data moving finished!!")
+
+            # 17개 시도 데이터가 압축풀려서 한 폴더에 위치함.
+            lst_files = os.listdir(unzip_folder)
+            db_log(data_nm, 'start', None, None)
+
+            # 전체인 경우는 먼저 삭제하고 업로드한다. // 또한 법정동코드도 무조건 삭제하고 다시 올린다.
+            if is_truncate(lst_files, data_nm, batch_date):
+                truncate_table(data_nm)
+
+            # 시도별 데이터 처리
+            for u_file in lst_files:
+                file_date = re.sub(r'[^0-9]', '', u_file[int_pos:])
+                # 진행조건 체크..
+                if not is_processing(batch_date, file_date, std_month, data_nm):
                     continue
-                logger.info(f"{unzip_folder}: Unzip and data moving finished!!")
 
-                # 17개 시도 데이터가 압축풀려서 한 폴더에 위치함.
-                lst_files = os.listdir(unzip_folder)
-                db_log(data_nm, 'start', None, None)
+                if batch_date == file_date:
+                    # 레이어 (6개)
+                    if layer_yn == 'Y' and u_file[-4:] == '.shp':
+                        dict_inifo = meta_info.layer_info.get(data_nm)
+                        # full name
+                        shp_full_nm = os.path.join(unzip_folder, u_file)
+                        shp_df = gpd.read_file(shp_full_nm, encoding='euckr')
 
-                # 전체인 경우는 먼저 삭제하고 업로드한다. // 또한 법정동코드도 무조건 삭제하고 다시 올린다.
-                if batch_opt == 'full' or batch_opt == 'jijuk_all' or (batch_opt == 'daily' and data_nm == constant.LSCT_LAWDCD):
-                    truncate_table(data_nm)
+                        # 좌표변환 (원본좌표 그대로 사용)
+                        # shp_df = shp_df.set_crs(epsg=FROM_SR_ID, allow_override=True)
+                        # shp_df.geometry = shp_df.geometry.to_crs(epsg=TO_SR_ID)
 
-                # 시도별 데이터 처리
-                for u_file in lst_files:
-                    file_date = re.sub(r'[^0-9]', '', u_file[int_pos:])
-                    # 진행조건 체크..
-                    if not is_processing(batch_opt, file_date, std_month, std_date, data_nm):
-                        continue
+                        if shp_df is None:
+                            logger.error(f"Wrong Shape File: {str(shp_full_nm)}")
+                            continue
 
-                    if batch_date is None or (batch_date is not None and batch_date == file_date):
-                        # 레이어 (6개)
-                        if layer_yn == 'Y' and u_file[-4:] == '.shp':
-                            dict_inifo = meta_info.layer_info.get(data_nm)
-                            # full name
-                            shp_full_nm = os.path.join(unzip_folder, u_file)
-                            shp_df = gpd.read_file(shp_full_nm, encoding='euckr')
+                        # Insert Data (daily와, full을 다르게 처리함)
+                        insert_shp_values(file_date, dict_inifo, shp_df, shp_full_nm, db_con)
 
-                            # TODO: 좌표변환이 필요할 경우
-                            # shp_df = shp_df.set_crs(epsg=FROM_SR_ID, allow_override=True)
-                            # shp_df.geometry = shp_df.geometry.to_crs('EPSG:5179')
+                        # 메모리 해제
+                        del [[shp_df]]
+                        gc.collect()
+                        shp_df = gpd.GeoDataFrame()
+                        lst_prcs_date.append(file_date)
+                        dict_data[data_nm].append(u_file[:-4])
 
-                            if shp_df is None:
-                                logger.error(f"Wrong Shape File: {str(shp_full_nm)}")
-                                continue
+                    # 테이블(5개)
+                    elif layer_yn == 'N' and (u_file[-4:] == '.txt' or u_file[-4:] == '.csv'):
+                        # 일자별 업데이트 파일은 _C 테이블에 추가한다.
+                        sqlldr_nm = get_sqlldr_nm(file_date, data_nm)
 
-                            # Insert Data (daily와, full을 다르게 처리함)
-                            insert_shp_values(file_date, dict_inifo, shp_df, shp_full_nm, db_con)
+                        ctl_path = f"{constant.sqlldr_ctr_folder}{sqlldr_nm}.ctl"
+                        log_path = f"{constant.sqlldr_log_folder}/{sqlldr_nm}_{execute_day}.log"
+                        bad_path = f"{constant.sqlldr_bad_folder}/{sqlldr_nm}_{execute_day}.bad"
+                        data_path = f"{unzip_folder}/{u_file}"
+                        command = rf"sqlldr userid={config.db_user}/{config.db_pass}@{config.db_dsn} control={ctl_path} data={data_path} log={log_path} bad={bad_path} rows=100000 direct=TRUE"
+                        # Insert Data
+                        os.system(command)
 
-                            # 메모리 해제
-                            del [[shp_df]]
-                            gc.collect()
-                            shp_df = gpd.GeoDataFrame()
-                            lst_prcs_date.append(file_date)
-                            dict_data[data_nm].append(u_file[:-4])
+                        logger.info(f"{unzip_folder}/{u_file}: Sqlldr Success!!")
+                        lst_prcs_date.append(file_date)
+                        dict_data[data_nm].append(u_file[:-4])
 
-                        # 테이블(5개)
-                        elif layer_yn == 'N' and (u_file[-4:] == '.txt' or u_file[-4:] == '.csv'):
-                            # 일자별 업데이트 파일은 _C 테이블에 추가한다.
-                            sqlldr_nm = get_sqlldr_nm(file_date, data_nm)
+            # 로그
+            if len(lst_prcs_date) > 0:
+                db_log(data_nm, 'finish', max(lst_prcs_date), None)
+            else:
+                db_log(data_nm, 'finish', None, None)
+            del lst_prcs_date[:]
 
-                            ctl_path = f"{constant.sqlldr_ctr_folder}{sqlldr_nm}.ctl"
-                            log_path = f"{constant.sqlldr_log_folder}/{sqlldr_nm}_{execute_day}.log"
-                            bad_path = f"{constant.sqlldr_bad_folder}/{sqlldr_nm}_{execute_day}.bad"
-                            data_path = f"{unzip_folder}/{u_file}"
-                            command = rf"sqlldr userid={config.db_user}/{config.db_pass}@{config.db_dsn} control={ctl_path} data={data_path} log={log_path} bad={bad_path} rows=100000 direct=TRUE"
-                            # Insert Data
-                            os.system(command)
+        except Exception as e:
+            logger.error(f"Error occured!!: {str(e)}")
+            db_log(data_nm, 'error', None, str(e))
 
-                            logger.info(f"{unzip_folder}/{u_file}: Sqlldr Success!!")
-                            lst_prcs_date.append(file_date)
-                            dict_data[data_nm].append(u_file[:-4])
-
-                # 로그
-                if len(lst_prcs_date) > 0:
-                    db_log(data_nm, batch_opt, max(lst_prcs_date), None)
-                else:
-                    db_log(data_nm, batch_opt, None, None)
-                del lst_prcs_date[:]
-
-            except Exception as e:
-                logger.error(f"Error occured!!: {str(e)}")
-                db_log(data_nm, 'error', None, str(e))
+    # 작업완료된 파일 백업폴더로 이동
+    logger.info("processing files backup")
+    utils.move_and_backup_files(dict_data)
 
     # 프로시져 콜 필요
     logger.info('call batch job procedure')
     cursor = db_con.cursor()
     try:
-        cursor.callproc('GIS_MAIN.P_UPDATE_DAILY')
+        cursor.callproc('GIS_MAIN.P_UPDATE_MONTH')
         cursor.close()
     except cx_Oracle.DatabaseError as err:
         logger.error(f"Error occured!!: {str(err)}")
@@ -459,8 +426,5 @@ if __name__ == '__main__':
         db_con.close()
 
     logger.info('finish procedure')
-    # 작업완료된 파일 백업폴더로 이동
-    utils.move_and_backup_files(dict_data)
-
     logger.info('finish batch job!!')
     exit()

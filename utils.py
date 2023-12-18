@@ -107,10 +107,11 @@ def move_and_backup_files(arg_dict):
                 for file in arg_dict[data]:
                     file_nm = source_folder_nm + '/' + file + '.zip'
                     if os.path.isfile(file_nm):
-                        shutil.move(file_nm, target_folder_nm)
+                        shutil.move(file_nm, os.path.join(target_folder_nm, file + '.zip'))
     except FileNotFoundError as err:
         logger.error("File Not Found Error! :" + str(err))
-
+    except Exception as e:
+        logger.error("Error! :" + str(e))
     return None
 
 

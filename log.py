@@ -38,3 +38,4 @@ def create_logger(logger_name):
 
 
 logger = create_logger("batchjob")
+logger2 = create_logger("exportjob")
